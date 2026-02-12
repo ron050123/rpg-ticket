@@ -118,5 +118,46 @@ export const api = {
         });
         if (!res.ok) throw await res.json();
         return res.json();
+    },
+    exchangeXP: async (data) => {
+        const res = await fetch(`${API_URL}/users/exchange`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify(data)
+        });
+        if (!res.ok) throw await res.json();
+        return res.json();
+    },
+    // Rewards
+    getRewards: async () => {
+        const res = await fetch(`${API_URL}/rewards`, { headers: getHeaders() });
+        if (!res.ok) throw await res.json();
+        return res.json();
+    },
+    createReward: async (data) => {
+        const res = await fetch(`${API_URL}/rewards`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify(data)
+        });
+        if (!res.ok) throw await res.json();
+        return res.json();
+    },
+    updateReward: async (id, data) => {
+        const res = await fetch(`${API_URL}/rewards/${id}`, {
+            method: 'PUT',
+            headers: getHeaders(),
+            body: JSON.stringify(data)
+        });
+        if (!res.ok) throw await res.json();
+        return res.json();
+    },
+    deleteReward: async (id) => {
+        const res = await fetch(`${API_URL}/rewards/${id}`, {
+            method: 'DELETE',
+            headers: getHeaders()
+        });
+        if (!res.ok) throw await res.json();
+        return res.json();
     }
 };

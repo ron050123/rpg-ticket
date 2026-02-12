@@ -18,7 +18,8 @@ const TaskCard = ({ task, onMove, users, onNotify }) => {
 
     // Edit State
     const [isEditMode, setIsEditMode] = useState(false);
-    const leadId = task.assigned_to || (task.Assignees && task.Assignees.length > 0 ? task.Assignees[0].id : null);
+    // Determine effective lead ID: prefer assigned_to, fallback to first assignee
+    const leadId = task.assigned_to ? parseInt(task.assigned_to) : (task.Assignees && task.Assignees.length > 0 ? task.Assignees[0].id : null);
     const [editData, setEditData] = useState({
         title: task.title,
         boss_damage: task.boss_damage,
@@ -26,7 +27,7 @@ const TaskCard = ({ task, onMove, users, onNotify }) => {
         priority: task.priority,
         label: task.label || 'FEATURE',
         description: task.description || '',
-        deadline: task.deadline ? task.deadline.split('T')[0] : '',
+        deadline: (task.deadline && !isNaN(new Date(task.deadline).getTime())) ? new Date(task.deadline).toISOString().split('T')[0] : '',
         lead_assignee: leadId,
         associate_ids: task.Assignees ? task.Assignees.filter(u => u.id !== leadId).map(u => u.id) : []
     });
@@ -308,129 +309,8 @@ const TaskCard = ({ task, onMove, users, onNotify }) => {
     };
 
 
-    // Don't render edit mode for DONE tasks
-    if (isEditMode && task.status !== 'DONE') {
-        return (
-            <div className="nes-container is-rounded" style={{ marginBottom: '1rem', padding: '1rem' }}>
-                <h3 style={{ marginTop: 0 }}>Edit Quest</h3>
-                <div className="nes-field">
-                    <label>Title</label>
-                    <input
-                        className="nes-input"
-                        value={editData.title}
-                        onChange={e => setEditData({ ...editData, title: e.target.value })}
-                        style={darkInputStyle}
-                    />
-                </div>
-                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-                    <div className="nes-field" style={{ flex: 1 }}>
-                        <label>Boss Damage</label>
-                        <input
-                            type="number"
-                            className="nes-input"
-                            value={editData.boss_damage}
-                            onChange={e => setEditData({ ...editData, boss_damage: parseInt(e.target.value) })}
-                            style={darkInputStyle}
-                        />
-                    </div>
-                    {task.parent_task_id && (
-                        <div className="nes-field" style={{ flex: 1 }}>
-                            <label>XP Reward</label>
-                            <input
-                                type="number"
-                                className="nes-input"
-                                value={editData.xp_reward}
-                                onChange={e => setEditData({ ...editData, xp_reward: parseInt(e.target.value) })}
-                                style={darkInputStyle}
-                            />
-                        </div>
-                    )}
-                </div>
-                <div className="nes-field" style={{ marginTop: '0.5rem' }}>
-                    <label>Priority</label>
-                    <div className="nes-select">
-                        <select value={editData.priority} onChange={e => setEditData({ ...editData, priority: e.target.value })} style={darkInputStyle}>
-                            <option value="LOW">Low</option>
-                            <option value="MEDIUM">Medium</option>
-                            <option value="HIGH">High</option>
-                        </select>
-                    </div>
-                </div>
-                <div className="nes-field" style={{ marginTop: '0.5rem' }}>
-                    <label>Type</label>
-                    <div className="nes-select">
-                        <select value={editData.label} onChange={e => setEditData({ ...editData, label: e.target.value })} style={darkInputStyle}>
-                            <option value="FEATURE">Feature</option>
-                            <option value="BUG">Bug</option>
-                            <option value="ENHANCEMENT">Enhancement</option>
-                        </select>
-                    </div>
-                </div>
-                <div className="nes-field" style={{ marginTop: '0.5rem' }}>
-                    <label>Lead Assignee (Required)</label>
-                    <div className="nes-select">
-                        <select
-                            value={editData.lead_assignee || ''}
-                            onChange={e => setEditData({ ...editData, lead_assignee: e.target.value ? parseInt(e.target.value) : null })}
-                            style={darkInputStyle}
-                        >
-                            <option value="">Select Lead...</option>
-                            {users && users.map(u => (
-                                <option key={u.id} value={u.id}>{u.username} ({u.class})</option>
-                            ))}
-                        </select>
-                    </div>
-                </div>
-                <div className="nes-field" style={{ marginTop: '0.5rem' }}>
-                    <label>Associates (Optional)</label>
-                    <div style={{ maxHeight: '8rem', overflowY: 'auto', border: '2px solid #fff', padding: '0.5rem', backgroundColor: '#333', color: '#fff' }}>
-                        {users && users.filter(u => u.id !== editData.lead_assignee).map(u => (
-                            <div key={u.id} style={{ marginBottom: '0.25rem' }}>
-                                <label>
-                                    <input
-                                        type="checkbox"
-                                        className="nes-checkbox"
-                                        checked={editData.associate_ids.includes(u.id)}
-                                        onChange={() => {
-                                            const newIds = editData.associate_ids.includes(u.id)
-                                                ? editData.associate_ids.filter(id => id !== u.id)
-                                                : [...editData.associate_ids, u.id];
-                                            setEditData({ ...editData, associate_ids: newIds });
-                                        }}
-                                    />
-                                    <span style={{ color: '#fff' }}>{u.username} ({u.class})</span>
-                                </label>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-                <div className="nes-field" style={{ marginTop: '0.5rem' }}>
-                    <label>Description</label>
-                    <textarea
-                        className="nes-textarea"
-                        value={editData.description}
-                        onChange={e => setEditData({ ...editData, description: e.target.value })}
-                        placeholder="Describe the quest..."
-                        style={{ minHeight: '4rem', ...darkInputStyle }}
-                    />
-                </div>
-                <div className="nes-field" style={{ marginTop: '0.5rem' }}>
-                    <label>Deadline (Optional)</label>
-                    <input
-                        type="date"
-                        className="nes-input"
-                        value={editData.deadline}
-                        onChange={e => setEditData({ ...editData, deadline: e.target.value })}
-                        style={darkInputStyle}
-                    />
-                </div>
-                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
-                    <button className="nes-btn is-success is-small" onClick={handleSaveEdit}>Save</button>
-                    <button className="nes-btn is-error is-small" onClick={handleCancelEdit}>Cancel</button>
-                </div>
-            </div>
-        );
-    }
+    // Don't render edit mode for DONE tasks - Logic moved to inside return
+
 
     return (
         <div className="nes-container is-rounded" style={{ marginBottom: '1rem', padding: '1rem', position: 'relative' }}>
@@ -495,16 +375,9 @@ const TaskCard = ({ task, onMove, users, onNotify }) => {
             </div>
 
             {/* Deadline */}
-            {task.deadline && task.deadline !== '' && (
+            {task.deadline && task.deadline !== '' && !isNaN(new Date(task.deadline).getTime()) && (
                 <div style={{ fontSize: '0.75rem', fontStyle: 'italic', marginBottom: '0.5rem' }}>
-                    ⏰ Deadline: {(() => {
-                        try {
-                            const date = new Date(task.deadline);
-                            return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-                        } catch (e) {
-                            return task.deadline;
-                        }
-                    })()}
+                    ⏰ Deadline: {new Date(task.deadline).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
                 </div>
             )}
 
@@ -512,11 +385,11 @@ const TaskCard = ({ task, onMove, users, onNotify }) => {
                 {task.Assignees && task.Assignees.length > 0 ? (
                     <>
                         <div>
-                            Lead Assignee: {task.Assignees.find(u => u.id === task.assigned_to)?.username || 'None'}
+                            Lead Assignee: {task.Assignees.find(u => u.id === leadId)?.username || 'None'}
                         </div>
-                        {task.Assignees.filter(u => u.id !== task.assigned_to).length > 0 && (
+                        {task.Assignees.filter(u => u.id !== leadId).length > 0 && (
                             <div>
-                                Associates: {task.Assignees.filter(u => u.id !== task.assigned_to).map(u => u.username).join(', ')}
+                                Associates: {task.Assignees.filter(u => u.id !== leadId).map(u => u.username).join(', ')}
                             </div>
                         )}
                     </>
@@ -789,11 +662,11 @@ const TaskCard = ({ task, onMove, users, onNotify }) => {
                                     {task.Assignees && task.Assignees.length > 0 ? (
                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
                                             {task.Assignees.map(u => (
-                                                <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', backgroundColor: '#fff', padding: '0.25rem 0.5rem', borderRadius: '4px', border: '2px solid #000', color: '#000' }}>
+                                                <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', backgroundColor: u.id === leadId ? '#f7d51d' : '#fff', padding: '0.25rem 0.5rem', borderRadius: '4px', border: '2px solid #000', color: '#000' }}>
                                                     {/* Avatar placeholder or initials */}
                                                     <div style={{ width: '20px', height: '20px', backgroundColor: '#ccc', borderRadius: '50%' }}></div>
-                                                    <span>{u.username}</span>
-                                                    {u.id === task.assigned_to && <i className="nes-icon is-small check"></i>}
+                                                    <span style={{ fontWeight: u.id === leadId ? 'bold' : 'normal' }}>{u.username}</span>
+                                                    {u.id === leadId && <i className="nes-icon is-small star"></i>}
                                                 </div>
                                             ))}
                                         </div>
@@ -827,7 +700,7 @@ const TaskCard = ({ task, onMove, users, onNotify }) => {
                                 {/* Dates */}
                                 <div>
                                     <p style={{ fontSize: '0.8rem', color: '#666', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Dates</p>
-                                    {task.deadline && (
+                                    {task.deadline && !isNaN(new Date(task.deadline).getTime()) && (
                                         <div style={{ marginBottom: '0.5rem' }}>
                                             <span style={{ display: 'block', fontSize: '0.8rem' }}>Due Date:</span>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -846,6 +719,125 @@ const TaskCard = ({ task, onMove, users, onNotify }) => {
                         </div>
 
                     </dialog>
+                </div>
+            )}
+
+            {/* Modal for Edit Quest */}
+            {isEditMode && task.status !== 'DONE' && (
+                <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+                    <div className="nes-container is-rounded is-white" style={{ backgroundColor: 'white', maxWidth: '600px', width: '90%', maxHeight: '90vh', overflowY: 'auto' }}>
+                        <h3 style={{ marginTop: 0, color: '#000' }}>Edit Quest</h3>
+                        <div className="nes-field">
+                            <label style={{ color: '#000' }}>Title</label>
+                            <input
+                                className="nes-input"
+                                value={editData.title}
+                                onChange={e => setEditData({ ...editData, title: e.target.value })}
+                            />
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                            <div className="nes-field" style={{ flex: 1 }}>
+                                <label style={{ color: '#000' }}>Boss Damage</label>
+                                <input
+                                    type="number"
+                                    className="nes-input"
+                                    value={editData.boss_damage}
+                                    onChange={e => setEditData({ ...editData, boss_damage: parseInt(e.target.value) })}
+                                />
+                            </div>
+                            {task.parent_task_id && (
+                                <div className="nes-field" style={{ flex: 1 }}>
+                                    <label style={{ color: '#000' }}>XP Reward</label>
+                                    <input
+                                        type="number"
+                                        className="nes-input"
+                                        value={editData.xp_reward}
+                                        onChange={e => setEditData({ ...editData, xp_reward: parseInt(e.target.value) })}
+                                    />
+                                </div>
+                            )}
+                        </div>
+                        <div className="nes-field" style={{ marginTop: '0.5rem' }}>
+                            <label style={{ color: '#000' }}>Deadline (Optional)</label>
+                            <input
+                                type="date"
+                                className="nes-input"
+                                value={editData.deadline}
+                                onChange={e => setEditData({ ...editData, deadline: e.target.value })}
+                            />
+                        </div>
+                        <div className="nes-field" style={{ marginTop: '0.5rem' }}>
+                            <label style={{ color: '#000' }}>Priority</label>
+                            <div className="nes-select">
+                                <select value={editData.priority} onChange={e => setEditData({ ...editData, priority: e.target.value })}>
+                                    <option value="LOW">Low</option>
+                                    <option value="MEDIUM">Medium</option>
+                                    <option value="HIGH">High</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div className="nes-field" style={{ marginTop: '0.5rem' }}>
+                            <label style={{ color: '#000' }}>Type</label>
+                            <div className="nes-select">
+                                <select value={editData.label} onChange={e => setEditData({ ...editData, label: e.target.value })}>
+                                    <option value="FEATURE">Feature</option>
+                                    <option value="BUG">Bug</option>
+                                    <option value="ENHANCEMENT">Enhancement</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div className="nes-field" style={{ marginTop: '0.5rem' }}>
+                            <label style={{ color: '#000' }}>Lead Assignee (Required)</label>
+                            <div className="nes-select">
+                                <select
+                                    value={editData.lead_assignee || ''}
+                                    onChange={e => setEditData({ ...editData, lead_assignee: e.target.value ? parseInt(e.target.value) : null })}
+                                >
+                                    <option value="">Select Lead...</option>
+                                    {users && users.map(u => (
+                                        <option key={u.id} value={u.id}>{u.username} ({u.class})</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+                        <div className="nes-field" style={{ marginTop: '0.5rem' }}>
+                            <label style={{ color: '#000' }}>Associates (Optional)</label>
+                            <div style={{ maxHeight: '8rem', overflowY: 'auto', border: '2px solid #000', padding: '0.5rem' }}>
+                                {users && users.filter(u => u.id !== editData.lead_assignee).map(u => (
+                                    <div key={u.id} style={{ marginBottom: '0.25rem' }}>
+                                        <label>
+                                            <input
+                                                type="checkbox"
+                                                className="nes-checkbox"
+                                                checked={editData.associate_ids.includes(u.id)}
+                                                onChange={() => {
+                                                    const newIds = editData.associate_ids.includes(u.id)
+                                                        ? editData.associate_ids.filter(id => id !== u.id)
+                                                        : [...editData.associate_ids, u.id];
+                                                    setEditData({ ...editData, associate_ids: newIds });
+                                                }}
+                                            />
+                                            <span>{u.username} ({u.class})</span>
+                                        </label>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="nes-field" style={{ marginTop: '0.5rem' }}>
+                            <label style={{ color: '#000' }}>Description</label>
+                            <textarea
+                                className="nes-textarea"
+                                value={editData.description}
+                                onChange={e => setEditData({ ...editData, description: e.target.value })}
+                                placeholder="Describe the quest..."
+                                style={{ minHeight: '4rem' }}
+                            />
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', justifyContent: 'flex-end' }}>
+                            <button className="nes-btn" onClick={handleCancelEdit}>Cancel</button>
+                            <button className="nes-btn is-success" onClick={handleSaveEdit}>Save</button>
+                        </div>
+                    </div>
                 </div>
             )}
 

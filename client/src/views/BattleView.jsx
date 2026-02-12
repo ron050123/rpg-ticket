@@ -8,13 +8,21 @@ import { useAuth } from '../context/AuthContext';
 const socket = io('http://localhost:5322');
 
 const BattleView = () => {
-    const { user } = useAuth();
+    const { user, updateUser } = useAuth();
+    const [showRewards, setShowRewards] = useState(false);
     const [boss, setBoss] = useState(null);
     const [tasks, setTasks] = useState([]);
     const [showTaskForm, setShowTaskForm] = useState(false);
     const [showBossForm, setShowBossForm] = useState(false);
     const [users, setUsers] = useState([]);
     const [notification, setNotification] = useState(null);
+    const [rewards, setRewards] = useState([]);
+    const [showRewardForm, setShowRewardForm] = useState(false);
+    const [editingReward, setEditingReward] = useState(null);
+    const [rewardFormData, setRewardFormData] = useState({ name: '', cost: 0, description: '', image_url: '' });
+    const [showBossReminder, setShowBossReminder] = useState(false);
+    const [showVictoryPopup, setShowVictoryPopup] = useState(false);
+    const [victoryDismissed, setVictoryDismissed] = useState(false);
 
     const [allBosses, setAllBosses] = useState([]);
     const [selectedBossId, setSelectedBossId] = useState(null); // Track which boss is selected
@@ -54,11 +62,17 @@ const BattleView = () => {
         deadline: ''
     });
 
+    // Initial Data Load
     useEffect(() => {
         loadData();
         loadUsers();
         loadAllBosses();
+        loadRewards();
+    }, []);
 
+    // Socket Listeners
+    useEffect(() => {
+        console.log("Setting up socket listeners");
         socket.on('connect', () => console.log('Connected to battle server'));
         socket.on('boss_updated', (updatedBoss) => {
             setBoss(prev => (prev && prev.id === updatedBoss.id ? updatedBoss : prev));
@@ -90,16 +104,36 @@ const BattleView = () => {
             setTimeout(() => setNotification(null), 5000);
         });
 
+        socket.on('reward_redeemed', (data) => {
+            if (user.role === 'ADMIN') {
+                setNotification(`User ${data.username} redeemed ${data.item} for ${data.cost} XP!`);
+                setTimeout(() => setNotification(null), 5000);
+            }
+        });
+
+        socket.on('boss_deleted', (data) => {
+            setAllBosses(prev => prev.filter(b => b.id !== data.id));
+            if (selectedBossId === data.id) {
+                setBoss(null);
+                setSelectedBossId(null);
+            }
+        });
+
         return () => {
+            socket.off('connect');
             socket.off('boss_updated');
             socket.off('task_created');
             socket.off('task_updated');
             socket.off('task_deleted');
             socket.off('boss_created');
+            socket.off('boss_deleted');
             socket.off('damage_dealt');
             socket.off('friend_joined');
+            socket.off('reward_redeemed');
         };
-    }, []);
+    }, [user.role, selectedBossId]); // Removed allBosses to prevent loop
+
+
 
     const loadData = async () => {
         try {
@@ -143,6 +177,57 @@ const BattleView = () => {
         try {
             const list = await api.getBosses();
             setAllBosses(list);
+            // Reminder logic: if admin and no bosses, show reminder
+            if (user.role === 'ADMIN' && list.length === 0) {
+                setShowBossReminder(true);
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    // Effect to auto-select boss if none selected but list exists
+    useEffect(() => {
+        if (!boss && allBosses.length > 0) {
+            setBoss(allBosses[0]);
+            setSelectedBossId(allBosses[0].id);
+        } else if (boss && !allBosses.find(b => b.id === boss.id)) {
+            // Current boss was removed
+            if (allBosses.length > 0) {
+                setBoss(allBosses[0]);
+                setSelectedBossId(allBosses[0].id);
+            } else {
+                setBoss(null);
+                setSelectedBossId(null);
+            }
+        }
+    }, [allBosses, boss]); // Run whenever list or current boss changes
+
+    // Check for Victory
+    useEffect(() => {
+        if (boss && boss.current_hp === 0 && boss.total_hp > 0) {
+            if (!victoryDismissed) {
+                setShowVictoryPopup(true);
+            }
+        } else {
+            // Reset dismissed state if boss recovers or changes?
+            // If we switch bosses, we should probably reset.
+            // But 'boss' dependency handles that if we check boss.id?
+            // Actually, if we switch to a DEFEATED boss, we might want to show it again unless dismissed *for that session*.
+            // For now, let's just show it.
+        }
+    }, [boss, victoryDismissed]);
+
+    // Reset dismissal when switching bosses
+    useEffect(() => {
+        setVictoryDismissed(false);
+        setShowVictoryPopup(false);
+    }, [selectedBossId]);
+
+    const loadRewards = async () => {
+        try {
+            const list = await api.getRewards();
+            setRewards(list);
         } catch (e) { console.error(e); }
     };
 
@@ -269,13 +354,64 @@ const BattleView = () => {
 
     // Filter tasks
     // Filter tasks by selected boss
+    // Rewards Logic
+    const handleExchange = async (reward) => {
+        if (user.xp < reward.cost) {
+            alert("Not enough XP!");
+            return;
+        }
+        if (!window.confirm(`Exchange ${reward.cost} XP for ${reward.name}?`)) return;
+
+        try {
+            const res = await api.exchangeXP({ userId: user.id, item: reward.name, cost: reward.cost });
+            alert(res.message);
+            updateUser({ ...user, xp: res.newXP });
+        } catch (err) {
+            alert(err.message || "Exchange failed");
+        }
+    };
+
+    const handleSaveReward = async (e) => {
+        e.preventDefault();
+        try {
+            if (editingReward) {
+                await api.updateReward(editingReward.id, rewardFormData);
+            } else {
+                await api.createReward(rewardFormData);
+            }
+            setShowRewardForm(false);
+            setEditingReward(null);
+            setRewardFormData({ name: '', cost: 0, description: '', image_url: '' });
+            loadRewards();
+        } catch (err) {
+            alert('Failed to save reward: ' + err.message);
+        }
+    };
+
+    const handleDeleteReward = async (id) => {
+        if (!window.confirm('Are you sure you want to delete this reward?')) return;
+        try {
+            await api.deleteReward(id);
+            loadRewards();
+        } catch (err) {
+            alert('Failed to delete reward: ' + err.message);
+        }
+    };
+
     const visibleTasks = tasks.filter(t => {
         // If a boss is selected, only show tasks for that boss
         if (selectedBossId) {
             return t.boss_id === selectedBossId;
         }
-        // If no boss is selected, show tasks with no boss (general quests) or maybe all?
-        // Let's show tasks with no boss_id if no boss selected, to prevent clutter
+        // If no boss is selected, show tasks with no boss (general quests)?
+        // Or show nothing? Showing orphaned tasks is confusing if not intended.
+        // Let's only show orphaned tasks if specifically requested or if they possess a specific flag?
+        // Current behavior: Show orphaned tasks.
+        // User asked: "why is it that when aaa is deleted all of these tasks popped up?"
+        // This implies they didn't expect it.
+        // Let's hide them for now unless they are specifically "General Quests" (which we don't have a clear concept for yet).
+        // OR, better: Only show them if we are in a "No Boss" state explicitly.
+        // But since we are auto-selecting bosses now, this might be less of an issue.
         return t.boss_id === null;
     });
 
@@ -298,285 +434,397 @@ const BattleView = () => {
                 </div>
             )}
             {/* Header / Boss Area */}
-            <div style={{ marginBottom: '2rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                    <div>
-                        <span className="nes-text is-primary">Player: {user.username}</span>
-                        {isAdmin && <span className="nes-text is-error" style={{ marginLeft: '1rem' }}>(GM)</span>}
-                        <span className="nes-text is-warning" style={{ marginLeft: '1rem' }}>Lvl {user.level}</span>
-                        <span className="nes-text is-success" style={{ marginLeft: '1rem' }}>{user.class}</span>
-                        <span className="nes-text" style={{ marginLeft: '1rem' }}>XP: {user.xp}</span>
-                    </div>
+            <div style={{ marginBottom: '1rem' }}>
+                <div style={{ marginBottom: '1rem' }}>
+                    <span className="nes-text is-primary">Player: {user.username}</span>
+                    {isAdmin && <span className="nes-text is-error" style={{ marginLeft: '1rem' }}>(GM)</span>}
+                    <span className="nes-text is-warning" style={{ marginLeft: '1rem' }}>Lvl {user.level}</span>
+                    <span className="nes-text is-success" style={{ marginLeft: '1rem' }}>{user.class}</span>
+                    <span className="nes-text" style={{ marginLeft: '1rem' }}>XP: {user.xp}</span>
+                </div>
+            </div>
+
+
+            {/* Tabs */}
+            {/* Tabs & Actions Line */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                <div>
+                    <button className={`nes-btn ${activeTab === 'battle' ? 'is-primary' : ''}`} onClick={() => setActiveTab('battle')} style={{ marginRight: '1rem' }}>Battle View</button>
+                    <button className={`nes-btn ${activeTab === 'timeline' ? 'is-primary' : ''}`} onClick={() => setActiveTab('timeline')}>Timeline View</button>
+                </div>
+                <div>
+                    <button className="nes-btn is-warning" onClick={() => setShowRewards(true)} style={{ marginRight: '1rem' }}>Rewards</button>
                     <button className="nes-btn is-error" onClick={() => localStorage.clear() || window.location.reload()}>Logout</button>
                 </div>
             </div>
 
-            {/* Tabs */}
-            <div style={{ marginBottom: '1rem' }}>
-                <button className={`nes-btn ${activeTab === 'battle' ? 'is-primary' : ''}`} onClick={() => setActiveTab('battle')} style={{ marginRight: '1rem' }}>Battle View</button>
-                <button className={`nes-btn ${activeTab === 'timeline' ? 'is-primary' : ''}`} onClick={() => setActiveTab('timeline')}>Timeline View</button>
-            </div>
+            {
+                activeTab === 'battle' ? (
+                    <>
+                        {/* Boss Section */}
+                        {allBosses.length > 0 ? (
+                            <div className="nes-container is-dark with-title" style={{ marginBottom: '1rem' }}>
+                                <p className="title">BOSS</p>
 
-            {activeTab === 'battle' ? (
-                <>
-                    {/* Boss Section */}
-                    {allBosses.length > 0 ? (
-                        <div className="nes-container is-dark with-title" style={{ marginBottom: '1rem' }}>
-                            <p className="title">BOSS</p>
+                                {/* Boss Header & Actions */}
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                                    <div>
+                                        {/* Boss Tabs - only show if multiple bosses */}
+                                        {allBosses.length > 1 && (
+                                            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                                {allBosses.map(b => (
+                                                    <button
+                                                        key={b.id}
+                                                        className={`nes-btn ${selectedBossId === b.id ? 'is-primary' : 'is-disabled'}`}
+                                                        onClick={() => {
+                                                            setSelectedBossId(b.id);
+                                                            setBoss(b);
+                                                        }}
+                                                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
+                                                    >
+                                                        {b.name}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
 
-                            {/* Boss Header & Actions */}
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                                <div>
-                                    {/* Boss Tabs - only show if multiple bosses */}
-                                    {allBosses.length > 1 && (
-                                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                            {allBosses.map(b => (
-                                                <button
-                                                    key={b.id}
-                                                    className={`nes-btn ${selectedBossId === b.id ? 'is-primary' : 'is-disabled'}`}
-                                                    onClick={() => {
-                                                        setSelectedBossId(b.id);
-                                                        setBoss(b);
-                                                    }}
-                                                    style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
-                                                >
-                                                    {b.name}
-                                                </button>
-                                            ))}
+                                    {isAdmin && boss && (
+                                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                            <button className="nes-btn is-warning is-small" onClick={handleEditBossClick}>Edit Boss</button>
+                                            <button className="nes-btn is-error is-small" onClick={handleDeleteBoss}>Delete Boss</button>
                                         </div>
                                     )}
                                 </div>
 
-                                {isAdmin && boss && (
-                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                        <button className="nes-btn is-warning is-small" onClick={handleEditBossClick}>Edit Boss</button>
-                                        <button className="nes-btn is-error is-small" onClick={handleDeleteBoss}>Delete Boss</button>
-                                    </div>
+                                {/* HP Bar for selected boss */}
+                                {boss && <HPBar boss={boss} />}
+                            </div>
+                        ) : (
+                            <div className="nes-container is-dark with-title" style={{ marginBottom: '1rem' }}>
+                                <p className="title">No Active Boss</p>
+                                {!isAdmin && <p>Waiting for the Grandmaster to summon a boss...</p>}
+                            </div>
+                        )}
+
+                        {/* Actions */}
+                        {isAdmin && (
+                            <div style={{ marginBottom: '1rem', display: 'flex', gap: '0.5rem' }}>
+                                <button className="nes-btn is-success" onClick={() => setShowTaskForm(true)}>+ New Quest</button>
+                                <button className="nes-btn is-primary" onClick={() => setShowBossForm(true)}>Summon Boss</button>
+                            </div>
+                        )}
+
+                        {/* Task Board */}
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'start' }}>
+                            <div className="nes-container with-title" style={{ flex: '1 1 300px' }}>
+                                <p className="title">To Do</p>
+                                {todoTasks.map(t => <TaskCard key={t.id} task={t} onMove={handleMoveTask} users={users} onNotify={setNotification} />)}
+                            </div>
+                            <div className="nes-container with-title" style={{ flex: '1 1 300px' }}>
+                                <p className="title">In Progress</p>
+                                {wipTasks.map(t => <TaskCard key={t.id} task={t} onMove={handleMoveTask} users={users} onNotify={setNotification} />)}
+                            </div>
+                            <div className="nes-container with-title is-dark" style={{ flex: '1 1 300px' }}>
+                                <p className="title">Completed</p>
+                                {doneTasks.map(t => <TaskCard key={t.id} task={t} onMove={handleMoveTask} users={users} onNotify={setNotification} />)}
+                            </div>
+                        </div>
+                    </>
+                ) : (
+                    /* Timeline View - Calendar */
+                    <div className="nes-container with-title">
+                        <p className="title">Boss Timeline Calendar</p>
+                        {allBosses.length === 0 ? <p>No bosses recorded.</p> : (
+                            <div style={{ padding: '0.5rem' }}>
+                                {(() => {
+                                    // Calculate date range for calendar
+                                    const today = new Date();
+                                    today.setHours(0, 0, 0, 0);
+
+                                    const bossDates = allBosses.flatMap(b => [
+                                        b.start_date ? new Date(b.start_date) : null,
+                                        b.deadline ? new Date(b.deadline) : null
+                                    ]).filter(d => d && !isNaN(d.getTime()));
+
+                                    const minDate = bossDates.length > 0
+                                        ? new Date(Math.min(...bossDates.map(d => d.getTime())))
+                                        : new Date(today.getFullYear(), today.getMonth(), 1);
+
+                                    const maxDate = bossDates.length > 0
+                                        ? new Date(Math.max(...bossDates.map(d => d.getTime())))
+                                        : new Date(today.getFullYear(), today.getMonth() + 3, 0);
+
+                                    // Add significant padding for visibility
+                                    minDate.setDate(minDate.getDate() - 15); // Increased left padding
+                                    maxDate.setDate(maxDate.getDate() + 15); // Increased right padding
+
+                                    const totalDays = Math.max(1, Math.ceil((maxDate - minDate) / (1000 * 60 * 60 * 24))); // Ensure at least 1 day
+                                    const dayWidth = 60; // Slightly wider
+                                    const totalWidth = Math.max(totalDays * dayWidth, 800); // Ensure min width
+                                    const contentHeight = (allBosses.length * 70) + 60;
+
+                                    return (
+                                        <div style={{ overflowX: 'auto', width: '100%', maxWidth: '100%', margin: '0 auto', border: '1px solid #ccc', borderRadius: '4px', backgroundColor: '#fff', position: 'relative' }}>
+                                            <div style={{ position: 'relative', width: `${totalWidth}px`, minWidth: '100%', height: `${contentHeight}px` }}>
+
+                                                {/* BACKGROUND GRID (Vertical Lines) */}
+                                                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 0 }}>
+                                                    {Array.from({ length: totalDays + 1 }).map((_, i) => {
+                                                        const current = new Date(minDate);
+                                                        current.setDate(minDate.getDate() + i);
+                                                        const isWeekStart = current.getDay() === 1; // Monday
+                                                        return (
+                                                            <div key={i} style={{
+                                                                position: 'absolute',
+                                                                left: `${i * dayWidth}px`,
+                                                                top: 0,
+                                                                bottom: 0,
+                                                                borderLeft: isWeekStart ? '1px solid #ccc' : '1px dashed #eee',
+                                                                backgroundColor: (current.getDay() === 0 || current.getDay() === 6) ? 'rgba(0,0,0,0.02)' : 'transparent' // Light shade for weekends
+                                                            }} />
+                                                        );
+                                                    })}
+                                                </div>
+
+                                                {/* TIME AXIS (Sticky Header) */}
+                                                <div style={{
+                                                    height: '40px',
+                                                    borderBottom: '2px solid #000',
+                                                    position: 'sticky',
+                                                    top: 0,
+                                                    backgroundColor: '#fff',
+                                                    zIndex: 20,
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                                                }}>
+                                                    {Array.from({ length: totalDays + 1 }).map((_, i) => {
+                                                        const current = new Date(minDate);
+                                                        current.setDate(minDate.getDate() + i);
+                                                        // Show label every Monday (1) and start of month
+                                                        const showLabel = current.getDay() === 1 || current.getDate() === 1;
+
+                                                        if (!showLabel) return null;
+
+                                                        return (
+                                                            <div key={i} style={{
+                                                                position: 'absolute',
+                                                                left: `${i * dayWidth + 5}px`,
+                                                                fontSize: '0.75rem',
+                                                                fontWeight: 'bold',
+                                                                color: '#333',
+                                                                whiteSpace: 'nowrap'
+                                                            }}>
+                                                                {current.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+
+                                                {/* BOSS BARS */}
+                                                <div style={{ position: 'relative', zIndex: 10, paddingTop: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                                    {allBosses.map(boss => {
+                                                        const startDate = boss.start_date ? new Date(boss.start_date) : today;
+                                                        const endDate = boss.deadline ? new Date(boss.deadline) : new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+                                                        const startOffset = Math.max(0, (startDate - minDate) / (1000 * 60 * 60 * 24));
+                                                        const duration = Math.max(1, (endDate - startDate) / (1000 * 60 * 60 * 24)); // Min 1 day duration
+
+                                                        const left = startOffset * dayWidth;
+                                                        const width = duration * dayWidth;
+
+                                                        // Determine status color
+                                                        let bgColor, status;
+                                                        if (boss.current_hp === 0) {
+                                                            bgColor = '#e76e55'; // Red
+                                                            status = '💀 DEFEATED';
+                                                        } else if (boss.deadline && new Date(boss.deadline) < today) {
+                                                            bgColor = '#f7d51d'; // Yellow
+                                                            status = '⏰ EXPIRED';
+                                                        } else {
+                                                            bgColor = '#92cc41'; // Green
+                                                            status = '⚔️ ACTIVE';
+                                                        }
+
+                                                        return (
+                                                            <div key={boss.id} style={{ position: 'relative', height: '50px' }}>
+                                                                <div
+                                                                    className="nes-container is-rounded"
+                                                                    style={{
+                                                                        position: 'absolute',
+                                                                        left: `${left}px`,
+                                                                        width: `${Math.max(width, dayWidth)}px`, // Ensure at least 1 day width visible
+                                                                        height: '50px',
+                                                                        backgroundColor: bgColor,
+                                                                        color: status === '⏰ EXPIRED' ? '#000' : '#fff',
+                                                                        padding: '0.25rem 0.5rem',
+                                                                        display: 'flex',
+                                                                        flexDirection: 'column',
+                                                                        justifyContent: 'center',
+                                                                        cursor: 'pointer',
+                                                                        border: '2px solid #000',
+                                                                        whiteSpace: 'nowrap',
+                                                                        overflow: 'hidden',
+                                                                        zIndex: 15,
+                                                                        boxShadow: '2px 2px 0px rgba(0,0,0,0.2)'
+                                                                    }}
+                                                                    title={`${boss.name}\n${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}\nHP: ${boss.current_hp}/${boss.total_hp}`}
+                                                                    onClick={() => {
+                                                                        setSelectedBossId(boss.id);
+                                                                        setActiveTab('battle');
+                                                                    }}
+                                                                >
+                                                                    <div style={{ fontWeight: 'bold', fontSize: '0.8rem', overflow: 'hidden', textOverflow: 'ellipsis' }}>{boss.name}</div>
+                                                                    <div style={{ fontSize: '0.7rem' }}>{status}</div>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+
+                                                {/* TODAY MARKER */}
+                                                {today >= minDate && today <= maxDate && (
+                                                    <div
+                                                        style={{
+                                                            position: 'absolute',
+                                                            left: `${((today - minDate) / (1000 * 60 * 60 * 24)) * dayWidth}px`,
+                                                            top: '40px', // Below header
+                                                            bottom: 0,
+                                                            width: '2px',
+                                                            backgroundColor: '#209cee',
+                                                            zIndex: 30,
+                                                            pointerEvents: 'none',
+                                                            boxShadow: '0 0 4px rgba(32, 156, 238, 0.5)'
+                                                        }}
+                                                    >
+                                                        <div style={{
+                                                            position: 'absolute',
+                                                            top: '-25px',
+                                                            left: '-20px',
+                                                            backgroundColor: '#209cee',
+                                                            color: '#fff',
+                                                            padding: '2px 4px',
+                                                            borderRadius: '4px',
+                                                            fontSize: '0.6rem',
+                                                            fontWeight: 'bold'
+                                                        }}>
+                                                            TODAY
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+                        )}
+                    </div>
+                )
+            }
+
+            {/* Rewards Modal */}
+            {
+                showRewards && (
+                    <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 100 }}>
+                        <div className="nes-container is-rounded is-white" style={{ backgroundColor: 'white', maxWidth: '600px', width: '90%', maxHeight: '90vh', overflowY: 'auto' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <h2>XP Rewards Store</h2>
+                                {isAdmin && (
+                                    <button className="nes-btn is-success is-small" onClick={() => {
+                                        setEditingReward(null);
+                                        setRewardFormData({ name: '', cost: 0, description: '', image_url: '' });
+                                        setShowRewardForm(true);
+                                    }}>+ Add Reward</button>
                                 )}
                             </div>
+                            <p>Current XP: <span className="nes-text is-success">{user.xp}</span></p>
 
-                            {/* HP Bar for selected boss */}
-                            {boss && <HPBar boss={boss} />}
-                        </div>
-                    ) : (
-                        <div className="nes-container is-dark with-title" style={{ marginBottom: '1rem' }}>
-                            <p className="title">No Active Boss</p>
-                            {!isAdmin && <p>Waiting for the Grandmaster to summon a boss...</p>}
-                        </div>
-                    )}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
+                                {rewards.map(reward => (
+                                    <div key={reward.id} className="nes-container is-centered with-title" style={{ position: 'relative' }}>
+                                        <p className="title">{reward.name}</p>
+                                        {reward.image_url && <img src={reward.image_url} alt={reward.name} style={{ width: '50px', height: '50px', objectFit: 'contain' }} />}
+                                        <p>{reward.cost} XP</p>
+                                        {reward.description && <p style={{ fontSize: '0.8rem', color: '#666' }}>{reward.description}</p>}
 
-                    {/* Actions */}
-                    {isAdmin && (
-                        <div style={{ marginBottom: '1rem', display: 'flex', gap: '0.5rem' }}>
-                            <button className="nes-btn is-success" onClick={() => setShowTaskForm(true)}>+ New Quest</button>
-                            <button className="nes-btn is-primary" onClick={() => setShowBossForm(true)}>Summon Boss</button>
-                        </div>
-                    )}
+                                        <button
+                                            className={`nes-btn ${user.xp >= reward.cost ? 'is-primary' : 'is-disabled'}`}
+                                            onClick={() => user.xp >= reward.cost && handleExchange(reward)}
+                                            disabled={user.xp < reward.cost}
+                                            style={{ marginBottom: '0.5rem' }}
+                                        >
+                                            Exchange
+                                        </button>
 
-                    {/* Task Board */}
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'start' }}>
-                        <div className="nes-container with-title" style={{ flex: '1 1 300px' }}>
-                            <p className="title">To Do</p>
-                            {todoTasks.map(t => <TaskCard key={t.id} task={t} onMove={handleMoveTask} users={users} onNotify={setNotification} />)}
-                        </div>
-                        <div className="nes-container with-title" style={{ flex: '1 1 300px' }}>
-                            <p className="title">In Progress</p>
-                            {wipTasks.map(t => <TaskCard key={t.id} task={t} onMove={handleMoveTask} users={users} onNotify={setNotification} />)}
-                        </div>
-                        <div className="nes-container with-title is-dark" style={{ flex: '1 1 300px' }}>
-                            <p className="title">Completed</p>
-                            {doneTasks.map(t => <TaskCard key={t.id} task={t} onMove={handleMoveTask} users={users} onNotify={setNotification} />)}
+                                        {isAdmin && (
+                                            <div style={{ borderTop: '1px dashed #ccc', paddingTop: '0.5rem', display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                                                <button className="nes-btn is-warning is-small" onClick={() => {
+                                                    setEditingReward(reward);
+                                                    setRewardFormData({ name: reward.name, cost: reward.cost, description: reward.description || '', image_url: reward.image_url || '' });
+                                                    setShowRewardForm(true);
+                                                }}>Edit</button>
+                                                <button className="nes-btn is-error is-small" onClick={() => handleDeleteReward(reward.id)}>Del</button>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div style={{ marginTop: '2rem', textAlign: 'right' }}>
+                                <button className="nes-btn" onClick={() => setShowRewards(false)}>Close</button>
+                            </div>
                         </div>
                     </div>
-                </>
-            ) : (
-                /* Timeline View - Calendar */
-                <div className="nes-container with-title">
-                    <p className="title">Boss Timeline Calendar</p>
-                    {allBosses.length === 0 ? <p>No bosses recorded.</p> : (
-                        <div style={{ padding: '0.5rem' }}>
-                            {(() => {
-                                // Calculate date range for calendar
-                                const today = new Date();
-                                today.setHours(0, 0, 0, 0);
+                )
+            }
 
-                                const bossDates = allBosses.flatMap(b => [
-                                    b.start_date ? new Date(b.start_date) : null,
-                                    b.deadline ? new Date(b.deadline) : null
-                                ]).filter(d => d && !isNaN(d.getTime()));
+            {/* Modal for Reward Form */}
+            {showRewardForm && (
+                <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.9)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 110 }}>
+                    <div className="nes-container is-rounded is-white" style={{ backgroundColor: 'white', maxWidth: '500px', width: '90%' }}>
+                        <h2>{editingReward ? 'Edit Reward' : 'New Reward'}</h2>
+                        <form onSubmit={handleSaveReward}>
+                            <div className="nes-field">
+                                <label>Name</label>
+                                <input className="nes-input" value={rewardFormData.name} onChange={e => setRewardFormData({ ...rewardFormData, name: e.target.value })} required />
+                            </div>
+                            <div className="nes-field">
+                                <label>Cost (XP)</label>
+                                <input type="number" className="nes-input" value={rewardFormData.cost} onChange={e => setRewardFormData({ ...rewardFormData, cost: parseInt(e.target.value) })} required min="1" />
+                            </div>
+                            <div className="nes-field">
+                                <label>Description</label>
+                                <input className="nes-input" value={rewardFormData.description} onChange={e => setRewardFormData({ ...rewardFormData, description: e.target.value })} />
+                            </div>
+                            <div className="nes-field">
+                                <label>Image URL</label>
+                                <input className="nes-input" value={rewardFormData.image_url} onChange={e => setRewardFormData({ ...rewardFormData, image_url: e.target.value })} placeholder="https://..." />
+                            </div>
+                            <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'space-between' }}>
+                                <button type="button" className="nes-btn" onClick={() => setShowRewardForm(false)}>Cancel</button>
+                                <button type="submit" className="nes-btn is-primary">Save</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
 
-                                const minDate = bossDates.length > 0
-                                    ? new Date(Math.min(...bossDates.map(d => d.getTime())))
-                                    : new Date(today.getFullYear(), today.getMonth(), 1);
-
-                                const maxDate = bossDates.length > 0
-                                    ? new Date(Math.max(...bossDates.map(d => d.getTime())))
-                                    : new Date(today.getFullYear(), today.getMonth() + 3, 0);
-
-                                // Add significant padding for visibility
-                                minDate.setDate(minDate.getDate() - 15); // Increased left padding
-                                maxDate.setDate(maxDate.getDate() + 15); // Increased right padding
-
-                                const totalDays = Math.max(1, Math.ceil((maxDate - minDate) / (1000 * 60 * 60 * 24))); // Ensure at least 1 day
-                                const dayWidth = 60; // Slightly wider
-                                const totalWidth = Math.max(totalDays * dayWidth, 800); // Ensure min width
-                                const contentHeight = (allBosses.length * 70) + 60;
-
-                                return (
-                                    <div style={{ overflowX: 'auto', width: '100%', maxWidth: '100%', margin: '0 auto', border: '1px solid #ccc', borderRadius: '4px', backgroundColor: '#fff', position: 'relative' }}>
-                                        <div style={{ position: 'relative', width: `${totalWidth}px`, minWidth: '100%', height: `${contentHeight}px` }}>
-
-                                            {/* BACKGROUND GRID (Vertical Lines) */}
-                                            <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 0 }}>
-                                                {Array.from({ length: totalDays + 1 }).map((_, i) => {
-                                                    const current = new Date(minDate);
-                                                    current.setDate(minDate.getDate() + i);
-                                                    const isWeekStart = current.getDay() === 1; // Monday
-                                                    return (
-                                                        <div key={i} style={{
-                                                            position: 'absolute',
-                                                            left: `${i * dayWidth}px`,
-                                                            top: 0,
-                                                            bottom: 0,
-                                                            borderLeft: isWeekStart ? '1px solid #ccc' : '1px dashed #eee',
-                                                            backgroundColor: (current.getDay() === 0 || current.getDay() === 6) ? 'rgba(0,0,0,0.02)' : 'transparent' // Light shade for weekends
-                                                        }} />
-                                                    );
-                                                })}
-                                            </div>
-
-                                            {/* TIME AXIS (Sticky Header) */}
-                                            <div style={{
-                                                height: '40px',
-                                                borderBottom: '2px solid #000',
-                                                position: 'sticky',
-                                                top: 0,
-                                                backgroundColor: '#fff',
-                                                zIndex: 20,
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                                            }}>
-                                                {Array.from({ length: totalDays + 1 }).map((_, i) => {
-                                                    const current = new Date(minDate);
-                                                    current.setDate(minDate.getDate() + i);
-                                                    // Show label every Monday (1) and start of month
-                                                    const showLabel = current.getDay() === 1 || current.getDate() === 1;
-
-                                                    if (!showLabel) return null;
-
-                                                    return (
-                                                        <div key={i} style={{
-                                                            position: 'absolute',
-                                                            left: `${i * dayWidth + 5}px`,
-                                                            fontSize: '0.75rem',
-                                                            fontWeight: 'bold',
-                                                            color: '#333',
-                                                            whiteSpace: 'nowrap'
-                                                        }}>
-                                                            {current.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-
-                                            {/* BOSS BARS */}
-                                            <div style={{ position: 'relative', zIndex: 10, paddingTop: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                                {allBosses.map(boss => {
-                                                    const startDate = boss.start_date ? new Date(boss.start_date) : today;
-                                                    const endDate = boss.deadline ? new Date(boss.deadline) : new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000);
-
-                                                    const startOffset = Math.max(0, (startDate - minDate) / (1000 * 60 * 60 * 24));
-                                                    const duration = Math.max(1, (endDate - startDate) / (1000 * 60 * 60 * 24)); // Min 1 day duration
-
-                                                    const left = startOffset * dayWidth;
-                                                    const width = duration * dayWidth;
-
-                                                    // Determine status color
-                                                    let bgColor, status;
-                                                    if (boss.current_hp === 0) {
-                                                        bgColor = '#e76e55'; // Red
-                                                        status = '💀 DEFEATED';
-                                                    } else if (boss.deadline && new Date(boss.deadline) < today) {
-                                                        bgColor = '#f7d51d'; // Yellow
-                                                        status = '⏰ EXPIRED';
-                                                    } else {
-                                                        bgColor = '#92cc41'; // Green
-                                                        status = '⚔️ ACTIVE';
-                                                    }
-
-                                                    return (
-                                                        <div key={boss.id} style={{ position: 'relative', height: '50px' }}>
-                                                            <div
-                                                                className="nes-container is-rounded"
-                                                                style={{
-                                                                    position: 'absolute',
-                                                                    left: `${left}px`,
-                                                                    width: `${Math.max(width, dayWidth)}px`, // Ensure at least 1 day width visible
-                                                                    height: '50px',
-                                                                    backgroundColor: bgColor,
-                                                                    color: status === '⏰ EXPIRED' ? '#000' : '#fff',
-                                                                    padding: '0.25rem 0.5rem',
-                                                                    display: 'flex',
-                                                                    flexDirection: 'column',
-                                                                    justifyContent: 'center',
-                                                                    cursor: 'pointer',
-                                                                    border: '2px solid #000',
-                                                                    whiteSpace: 'nowrap',
-                                                                    overflow: 'hidden',
-                                                                    zIndex: 15,
-                                                                    boxShadow: '2px 2px 0px rgba(0,0,0,0.2)'
-                                                                }}
-                                                                title={`${boss.name}\n${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}\nHP: ${boss.current_hp}/${boss.total_hp}`}
-                                                                onClick={() => {
-                                                                    setSelectedBossId(boss.id);
-                                                                    setActiveTab('battle');
-                                                                }}
-                                                            >
-                                                                <div style={{ fontWeight: 'bold', fontSize: '0.8rem', overflow: 'hidden', textOverflow: 'ellipsis' }}>{boss.name}</div>
-                                                                <div style={{ fontSize: '0.7rem' }}>{status}</div>
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-
-                                            {/* TODAY MARKER */}
-                                            {today >= minDate && today <= maxDate && (
-                                                <div
-                                                    style={{
-                                                        position: 'absolute',
-                                                        left: `${((today - minDate) / (1000 * 60 * 60 * 24)) * dayWidth}px`,
-                                                        top: '40px', // Below header
-                                                        bottom: 0,
-                                                        width: '2px',
-                                                        backgroundColor: '#209cee',
-                                                        zIndex: 30,
-                                                        pointerEvents: 'none',
-                                                        boxShadow: '0 0 4px rgba(32, 156, 238, 0.5)'
-                                                    }}
-                                                >
-                                                    <div style={{
-                                                        position: 'absolute',
-                                                        top: '-25px',
-                                                        left: '-20px',
-                                                        backgroundColor: '#209cee',
-                                                        color: '#fff',
-                                                        padding: '2px 4px',
-                                                        borderRadius: '4px',
-                                                        fontSize: '0.6rem',
-                                                        fontWeight: 'bold'
-                                                    }}>
-                                                        TODAY
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                );
-                            })()}
+            {/* Boss Reminder Modal */}
+            {showBossReminder && (
+                <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 120 }}>
+                    <div className="nes-container is-rounded is-white" style={{ backgroundColor: 'white', maxWidth: '400px', width: '90%', textAlign: 'center' }}>
+                        <h2 style={{ color: '#e76e55' }}>Warning!</h2>
+                        <p>The realm has no active Boss!</p>
+                        <p>Heroes are getting restless. Calculate HP and summon a new threat immediately!</p>
+                        <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'center', gap: '1rem' }}>
+                            <button className="nes-btn is-primary" onClick={() => {
+                                setShowBossReminder(false);
+                                setShowBossForm(true);
+                            }}>Summon Boss</button>
+                            <button className="nes-btn" onClick={() => setShowBossReminder(false)}>Later</button>
                         </div>
-                    )}
+                    </div>
                 </div>
             )}
 
@@ -866,7 +1114,7 @@ const BattleView = () => {
 
                                 <div style={{ marginTop: '1rem', textAlign: 'center' }}>
                                     <span className="nes-text is-error" style={{ fontSize: '1.2rem' }}>
-                                        Total HP: {(newBoss.tasks || []).reduce((sum, t) => sum + (parseInt(t.boss_damage) || 0), 0) || 100}
+                                        Total HP: {(newBoss.tasks || []).reduce((sum, t) => sum + (parseInt(t.boss_damage) || 0), 0)}
                                     </span>
                                 </div>
 
@@ -936,6 +1184,60 @@ const BattleView = () => {
                     </div>
                 )
             }
+            {/* Victory Popup */}
+            {showVictoryPopup && boss && (
+                <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 200 }}>
+                    <div className="nes-container is-rounded is-centered is-dark" style={{ backgroundColor: '#212529', color: '#fff', maxWidth: '600px', width: '90%', border: '4px solid #F7D51D' }}>
+                        <i className="nes-icon trophy is-large"></i>
+                        <h2 style={{ color: '#F7D51D', marginTop: '1rem' }}>VICTORY!</h2>
+                        <p style={{ fontSize: '1.2rem' }}>The Boss <strong>{boss.name}</strong> has been defeated!</p>
+
+                        <div style={{ margin: '2rem 0', textAlign: 'left' }}>
+                            <p style={{ borderBottom: '2px solid #fff', paddingBottom: '0.5rem' }}>Heroes of the Realm:</p>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                {(() => {
+                                    // Get all DONE tasks for this boss
+                                    const completedTasks = tasks.filter(t => t.boss_id === boss.id && t.status === 'DONE');
+                                    const contributorIds = new Set();
+
+                                    completedTasks.forEach(t => {
+                                        if (t.Assignees) {
+                                            t.Assignees.forEach(u => contributorIds.add(u.id));
+                                        }
+                                        // Also add lead assignee if not in Assignees list for some reason (though robust data should have it)
+                                        if (t.assigned_to) contributorIds.add(t.assigned_to);
+                                    });
+
+                                    if (contributorIds.size === 0) return <p>No specific heroes recorded.</p>;
+
+                                    return Array.from(contributorIds).map(id => {
+                                        const u = users.find(user => user.id === id);
+                                        if (!u) return null;
+                                        return (
+                                            <span key={u.id} className="nes-badge">
+                                                <span className="is-warning">{u.username}</span>
+                                            </span>
+                                        );
+                                    });
+                                })()}
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', marginTop: '2rem' }}>
+                            <button className="nes-btn" onClick={() => {
+                                setShowVictoryPopup(false);
+                                setVictoryDismissed(true);
+                            }}>Close</button>
+                            {isAdmin && (
+                                <button className="nes-btn is-error" onClick={() => {
+                                    handleDeleteBoss();
+                                    // No need to close explicitly as deleting boss triggers null boss state
+                                }}>Delete Boss</button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div >
     );
 };

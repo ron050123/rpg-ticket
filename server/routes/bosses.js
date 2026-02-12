@@ -132,33 +132,29 @@ router.put('/:id', requireAdmin, async (req, res) => {
 
 // Delete Boss (Admin Only)
 router.delete('/:id', requireAdmin, async (req, res) => {
-    const sequelize = require('../config/database');
-    const transaction = await sequelize.transaction();
-
     try {
         const boss = await Boss.findByPk(req.params.id);
         if (!boss) {
-            await transaction.rollback();
             return res.status(404).json({ message: 'Boss not found' });
         }
 
-        // Handling associated tasks: Set their boss_id to null within transaction
-        const { Task } = require('../models');
-        await Task.update(
-            { boss_id: null },
-            { where: { boss_id: boss.id }, transaction }
-        );
+        // Manually decoupling tasks to avoid SQLITE_CONSTRAINT error
+        await Task.update({ boss_id: null }, { where: { boss_id: boss.id } });
 
-        // Delete the boss within transaction
-        await boss.destroy({ transaction });
+        // Check for 'Tasks_backup' or similar tables created by Sequelize sync failures causing FK constraints
+        try {
+            const { sequelize } = require('../models');
+            await sequelize.query(`UPDATE Tasks_backup SET boss_id = NULL WHERE boss_id = ${boss.id}`);
+        } catch (e) {
+            // Ignore if table doesn't exist
+        }
 
-        // Commit the transaction
-        await transaction.commit();
+        await boss.destroy();
 
-        req.io.emit('boss_deleted', boss.id);
+        req.io.emit('boss_deleted', { id: boss.id }); // Send object with ID for consistency
         res.json({ message: 'Boss deleted successfully' });
     } catch (error) {
-        await transaction.rollback();
+        console.error('Delete boss error:', error);
         res.status(500).json({ error: error.message });
     }
 });

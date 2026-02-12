@@ -3,6 +3,7 @@ const sequelize = require('../config/database');
 const User = require('./User');
 const Boss = require('./Boss');
 const Task = require('./Task');
+const Reward = require('./Reward');
 
 
 
@@ -34,6 +35,8 @@ module.exports = {
     User,
     Boss,
     Task,
+    Task,
     Comment,
+    Reward,
     sequelize
 };

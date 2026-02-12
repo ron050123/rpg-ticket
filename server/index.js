@@ -27,6 +27,8 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/bosses', require('./routes/bosses'));
 app.use('/api/tasks', require('./routes/tasks'));
 app.use('/api/comments', require('./routes/comments'));
+app.use('/api/users', require('./routes/users'));
+app.use('/api/rewards', require('./routes/rewards'));
 
 // Socket.io connection
 io.on('connection', (socket) => {
@@ -49,6 +51,14 @@ async function startServer() {
             // We'll try basic sync which doesn't alter schema but ensures tables exist
             await sequelize.sync();
             console.log('Database synced successfully (basic sync).');
+        }
+        if (process.env.NODE_ENV !== 'test') {
+            try {
+                const seedRewards = require('./seeders/rewards');
+                await seedRewards();
+            } catch (seedErr) {
+                console.error('Seeding error:', seedErr);
+            }
         }
         server.listen(PORT, () => {
             console.log(`Server running on port ${PORT}`);

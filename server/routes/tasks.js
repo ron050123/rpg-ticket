@@ -1,5 +1,5 @@
 const express = require('express');
-const { Task, Boss, User } = require('../models');
+const { Task, Boss, User, Comment } = require('../models');
 const { requireAdmin, verifyToken } = require('../middleware/auth');
 
 const router = express.Router();
@@ -15,7 +15,6 @@ router.get('/', verifyToken, async (req, res) => {
         if (isAdmin) {
             // Admins see all tasks
             tasks = await Task.findAll({
-                where: { parent_task_id: null },
                 attributes: { include: ['assigned_to'] }, // Include lead assignee
                 include: [
                     { model: User, as: 'Assignees' },
@@ -27,6 +26,8 @@ router.get('/', verifyToken, async (req, res) => {
                     }
                 ]
             });
+            // Filter out subtasks from main list (only show parents)
+            tasks = tasks.filter(t => !t.parent_task_id);
         } else {
             // Regular users see only:
             // 1. Tasks they're assigned to
@@ -64,9 +65,9 @@ router.get('/', verifyToken, async (req, res) => {
 // Create Task (Admin Only for main quests, Lead Assignee can create side quests)
 router.post('/', verifyToken, async (req, res) => {
     try {
-        const { title, difficulty, priority, label, boss_id, assignee_ids, parent_task_id, xp_reward, boss_damage, description, deadline } = req.body;
+        const { title, difficulty, priority, label, boss_id, assignee_ids, parent_task_id, xp_reward, boss_damage, description, deadline, lead_assignee } = req.body;
 
-        // Permission check: Only admin can create main quests, lead assignees can create side quests
+        // Permission check: Only admin can create main quests
         if (!parent_task_id && req.user.role !== 'ADMIN') {
             return res.status(403).json({ error: 'Only admins can create main quests.' });
         }
@@ -91,8 +92,10 @@ router.post('/', verifyToken, async (req, res) => {
             if (parent) finalBossId = parent.boss_id;
         }
 
-        // Set lead assignee (first assignee in the list)
-        const leadAssigneeId = assignee_ids && assignee_ids.length > 0 ? assignee_ids[0] : null;
+        // Set lead assignee
+        // If provided explicitly (lead_assignee), use it. otherwise check first in array?
+        // The frontend sends lead_assignee separately now.
+        const leadAssigneeId = lead_assignee ? parseInt(lead_assignee) : (assignee_ids && assignee_ids.length > 0 ? assignee_ids[0] : null);
 
         const task = await Task.create({
             title,
@@ -105,7 +108,7 @@ router.post('/', verifyToken, async (req, res) => {
             boss_damage: boss_damage || 10,
             description: description || null,
             deadline: deadline || null,
-            assigned_to: leadAssigneeId // Lead assignee
+            assigned_to: leadAssigneeId // Lead assignee explicit field
         });
 
         if (assignee_ids && assignee_ids.length > 0) {
@@ -113,7 +116,15 @@ router.post('/', verifyToken, async (req, res) => {
         }
 
         // Update Boss HP if attached
-        // ONLY for main quests (side quests don't affect boss HP)
+        // ONLY for main quests (side quests don't affect boss HP directly usually, but logic here says yes?)
+        // Wait, main logic says: if task has boss_damage, add it to boss total HP?
+        // "Total HP" usually means MAX HP. "Current HP" means current health.
+        // If we Create a task, we are ADDING to the boss's total HP pool normally?
+        // Or are we dealing damage?
+        // "Boss Damage" on a task usually means "Hitting this task deals X damage to boss".
+        // SO when creating a task, we should INCREASE the boss's max HP to account for this new challenge?
+        // Yes, that seems to be the logic: Boss Total HP = Sum of all Task Damages.
+
         if (finalBossId && !parent_task_id) {
             const boss = await Boss.findByPk(finalBossId);
             if (boss) {
@@ -160,15 +171,10 @@ router.put('/:id', verifyToken, async (req, res) => {
         const isLeadAssignee = task.assigned_to === req.user.id; // Lead assignee check
 
         if (!isAdmin) {
-            if (!isAssignee) {
+            if (!isAssignee && !isLeadAssignee) { // Lead assignee is also an assignee usually, but strictly check
                 return res.status(403).json({ message: 'You can only update your own quests.' });
             }
-            // Lead assignee can manage assignees but not other fields
-            if (isLeadAssignee && assignee_ids) {
-                // Allow lead assignee to manage assignees only
-            } else if (assignee_ids) {
-                return res.status(403).json({ message: 'You cannot reassign quests.' });
-            }
+
             // Non-admins cannot set status to DONE directly
             if (status === 'DONE') {
                 return res.status(403).json({ message: 'Only Admins can Complete quests. Please Mark as Done to submit for review.' });
@@ -179,10 +185,6 @@ router.put('/:id', verifyToken, async (req, res) => {
 
         // Update fields
         if (status) {
-            // If transitioning to PENDING_REVIEW, require a comment (optional but good practice to enforce if UI supports it)
-            if (status === 'PENDING_REVIEW' && !completion_comment && !task.completion_comment) {
-                // We could enforce it here, but let's be flexible for now or enforce on FE
-            }
             task.status = status;
         }
         if (completion_comment !== undefined) task.completion_comment = completion_comment;
@@ -313,8 +315,21 @@ router.delete('/:id', requireAdmin, async (req, res) => {
 
         // Delete subtasks first if this is a parent task
         if (!task.parent_task_id) {
-            await Task.destroy({ where: { parent_task_id: taskId } });
+            // Find subtasks to clear their associations too
+            const subtasks = await Task.findAll({ where: { parent_task_id: taskId } });
+            for (const subtask of subtasks) {
+                // Clear comments for subtask
+                await Comment.destroy({ where: { taskId: subtask.id } });
+                await subtask.setAssignees([]); // Clear subtask assignees
+                await subtask.destroy();
+            }
         }
+
+        // Clear comments for main task
+        await Comment.destroy({ where: { taskId: task.id } });
+
+        // Clear assignees for the main task
+        await task.setAssignees([]);
 
         // Delete the task
         await task.destroy();
