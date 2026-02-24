@@ -13,6 +13,32 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Layout container - max-width with centered margins for space on both sides */
+#root {
+  max-width: 1650px;
+  margin: 0 auto;
+  padding: 0 15px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.container {
+  max-width: 1650px;
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Override NES.css font to add Vietnamese-supporting pixel fallback (VT323) */
+html,
+body,
+pre,
+code,
+kbd,
+samp {
+  font-family: "Press Start 2P", "VT323", sans-serif;
+}
+
 a {
   font-weight: 500;
   color: #646cff;

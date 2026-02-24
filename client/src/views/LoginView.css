@@ -80,7 +80,7 @@
 
 .intro-title {
     font-size: 3rem;
-    font-family: 'Press Start 2P', cursive;
+    font-family: 'Press Start 2P', 'VT323', cursive;
     color: #FFD700;
     text-shadow: 4px 4px 0 #000;
     animation: scaleIn 1s cubic-bezier(0.175, 0.885, 0.32, 1.275);
@@ -121,7 +121,7 @@
     text-shadow: 4px 4px 0 #000;
     margin-bottom: 2rem;
     text-align: center;
-    font-family: 'Press Start 2P', cursive;
+    font-family: 'Press Start 2P', 'VT323', cursive;
     /* subtle float */
     animation: titleFloat 3s ease-in-out infinite;
 }

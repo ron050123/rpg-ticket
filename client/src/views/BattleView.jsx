@@ -3,6 +3,7 @@ import { io } from 'socket.io-client';
 import { api } from '../services/api';
 import HPBar from '../components/HPBar';
 import TaskCard from '../components/TaskCard';
+import BossArena from '../components/BossArena';
 import { useAuth } from '../context/AuthContext';
 
 const socket = io('http://localhost:5322');
@@ -422,7 +423,12 @@ const BattleView = () => {
     const isAdmin = user.role === 'ADMIN';
 
     return (
-        <div>
+        <div style={{ position: 'relative', minHeight: '100vh' }}>
+            {/* FULL-SCREEN BOSS ARENA BACKGROUND */}
+            <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 0 }}>
+                <BossArena boss={boss} />
+            </div>
+
             {notification && (
                 <div style={{
                     position: 'fixed', bottom: '20px', right: '20px', zIndex: 9999,
@@ -433,812 +439,805 @@ const BattleView = () => {
                     </p>
                 </div>
             )}
-            {/* Header / Boss Area */}
-            <div style={{ marginBottom: '1rem' }}>
-                <div style={{ marginBottom: '1rem' }}>
+
+            {/* CONTENT OVERLAY */}
+            <div style={{ position: 'relative', zIndex: 1, maxWidth: '1650px', margin: '0 auto', padding: '0 15px', paddingTop: '60vh' }}>
+                {/* Player Info */}
+                <div style={{ marginBottom: '1rem', paddingTop: '0.5rem' }}>
                     <span className="nes-text is-primary">Player: {user.username}</span>
                     {isAdmin && <span className="nes-text is-error" style={{ marginLeft: '1rem' }}>(GM)</span>}
                     <span className="nes-text is-warning" style={{ marginLeft: '1rem' }}>Lvl {user.level}</span>
                     <span className="nes-text is-success" style={{ marginLeft: '1rem' }}>{user.class}</span>
-                    <span className="nes-text" style={{ marginLeft: '1rem' }}>XP: {user.xp}</span>
+                    <span className="nes-text" style={{ marginLeft: '1rem', color: '#fff' }}>XP: {user.xp}</span>
                 </div>
-            </div>
 
-
-            {/* Tabs */}
-            {/* Tabs & Actions Line */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <div>
-                    <button className={`nes-btn ${activeTab === 'battle' ? 'is-primary' : ''}`} onClick={() => setActiveTab('battle')} style={{ marginRight: '1rem' }}>Battle View</button>
-                    <button className={`nes-btn ${activeTab === 'timeline' ? 'is-primary' : ''}`} onClick={() => setActiveTab('timeline')}>Timeline View</button>
-                </div>
-                <div>
-                    <button className="nes-btn is-warning" onClick={() => setShowRewards(true)} style={{ marginRight: '1rem' }}>Rewards</button>
-                    <button className="nes-btn is-error" onClick={() => localStorage.clear() || window.location.reload()}>Logout</button>
-                </div>
-            </div>
-
-            {
-                activeTab === 'battle' ? (
-                    <>
-                        {/* Boss Section */}
-                        {allBosses.length > 0 ? (
-                            <div className="nes-container is-dark with-title" style={{ marginBottom: '1rem' }}>
-                                <p className="title">BOSS</p>
-
-                                {/* Boss Header & Actions */}
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                                    <div>
-                                        {/* Boss Tabs - only show if multiple bosses */}
-                                        {allBosses.length > 1 && (
-                                            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                                {allBosses.map(b => (
-                                                    <button
-                                                        key={b.id}
-                                                        className={`nes-btn ${selectedBossId === b.id ? 'is-primary' : 'is-disabled'}`}
-                                                        onClick={() => {
-                                                            setSelectedBossId(b.id);
-                                                            setBoss(b);
-                                                        }}
-                                                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
-                                                    >
-                                                        {b.name}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {isAdmin && boss && (
-                                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                            <button className="nes-btn is-warning is-small" onClick={handleEditBossClick}>Edit Boss</button>
-                                            <button className="nes-btn is-error is-small" onClick={handleDeleteBoss}>Delete Boss</button>
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* HP Bar for selected boss */}
-                                {boss && <HPBar boss={boss} />}
-                            </div>
-                        ) : (
-                            <div className="nes-container is-dark with-title" style={{ marginBottom: '1rem' }}>
-                                <p className="title">No Active Boss</p>
-                                {!isAdmin && <p>Waiting for the Grandmaster to summon a boss...</p>}
-                            </div>
-                        )}
-
-                        {/* Actions */}
-                        {isAdmin && (
-                            <div style={{ marginBottom: '1rem', display: 'flex', gap: '0.5rem' }}>
-                                <button className="nes-btn is-success" onClick={() => setShowTaskForm(true)}>+ New Quest</button>
-                                <button className="nes-btn is-primary" onClick={() => setShowBossForm(true)}>Summon Boss</button>
-                            </div>
-                        )}
-
-                        {/* Task Board */}
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'start' }}>
-                            <div className="nes-container with-title" style={{ flex: '1 1 300px' }}>
-                                <p className="title">To Do</p>
-                                {todoTasks.map(t => <TaskCard key={t.id} task={t} onMove={handleMoveTask} users={users} onNotify={setNotification} />)}
-                            </div>
-                            <div className="nes-container with-title" style={{ flex: '1 1 300px' }}>
-                                <p className="title">In Progress</p>
-                                {wipTasks.map(t => <TaskCard key={t.id} task={t} onMove={handleMoveTask} users={users} onNotify={setNotification} />)}
-                            </div>
-                            <div className="nes-container with-title is-dark" style={{ flex: '1 1 300px' }}>
-                                <p className="title">Completed</p>
-                                {doneTasks.map(t => <TaskCard key={t.id} task={t} onMove={handleMoveTask} users={users} onNotify={setNotification} />)}
-                            </div>
-                        </div>
-                    </>
-                ) : (
-                    /* Timeline View - Calendar */
-                    <div className="nes-container with-title">
-                        <p className="title">Boss Timeline Calendar</p>
-                        {allBosses.length === 0 ? <p>No bosses recorded.</p> : (
-                            <div style={{ padding: '0.5rem' }}>
-                                {(() => {
-                                    // Calculate date range for calendar
-                                    const today = new Date();
-                                    today.setHours(0, 0, 0, 0);
-
-                                    const bossDates = allBosses.flatMap(b => [
-                                        b.start_date ? new Date(b.start_date) : null,
-                                        b.deadline ? new Date(b.deadline) : null
-                                    ]).filter(d => d && !isNaN(d.getTime()));
-
-                                    const minDate = bossDates.length > 0
-                                        ? new Date(Math.min(...bossDates.map(d => d.getTime())))
-                                        : new Date(today.getFullYear(), today.getMonth(), 1);
-
-                                    const maxDate = bossDates.length > 0
-                                        ? new Date(Math.max(...bossDates.map(d => d.getTime())))
-                                        : new Date(today.getFullYear(), today.getMonth() + 3, 0);
-
-                                    // Add significant padding for visibility
-                                    minDate.setDate(minDate.getDate() - 15); // Increased left padding
-                                    maxDate.setDate(maxDate.getDate() + 15); // Increased right padding
-
-                                    const totalDays = Math.max(1, Math.ceil((maxDate - minDate) / (1000 * 60 * 60 * 24))); // Ensure at least 1 day
-                                    const dayWidth = 60; // Slightly wider
-                                    const totalWidth = Math.max(totalDays * dayWidth, 800); // Ensure min width
-                                    const contentHeight = (allBosses.length * 70) + 60;
-
-                                    return (
-                                        <div style={{ overflowX: 'auto', width: '100%', maxWidth: '100%', margin: '0 auto', border: '1px solid #ccc', borderRadius: '4px', backgroundColor: '#fff', position: 'relative' }}>
-                                            <div style={{ position: 'relative', width: `${totalWidth}px`, minWidth: '100%', height: `${contentHeight}px` }}>
-
-                                                {/* BACKGROUND GRID (Vertical Lines) */}
-                                                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 0 }}>
-                                                    {Array.from({ length: totalDays + 1 }).map((_, i) => {
-                                                        const current = new Date(minDate);
-                                                        current.setDate(minDate.getDate() + i);
-                                                        const isWeekStart = current.getDay() === 1; // Monday
-                                                        return (
-                                                            <div key={i} style={{
-                                                                position: 'absolute',
-                                                                left: `${i * dayWidth}px`,
-                                                                top: 0,
-                                                                bottom: 0,
-                                                                borderLeft: isWeekStart ? '1px solid #ccc' : '1px dashed #eee',
-                                                                backgroundColor: (current.getDay() === 0 || current.getDay() === 6) ? 'rgba(0,0,0,0.02)' : 'transparent' // Light shade for weekends
-                                                            }} />
-                                                        );
-                                                    })}
-                                                </div>
-
-                                                {/* TIME AXIS (Sticky Header) */}
-                                                <div style={{
-                                                    height: '40px',
-                                                    borderBottom: '2px solid #000',
-                                                    position: 'sticky',
-                                                    top: 0,
-                                                    backgroundColor: '#fff',
-                                                    zIndex: 20,
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                                                }}>
-                                                    {Array.from({ length: totalDays + 1 }).map((_, i) => {
-                                                        const current = new Date(minDate);
-                                                        current.setDate(minDate.getDate() + i);
-                                                        // Show label every Monday (1) and start of month
-                                                        const showLabel = current.getDay() === 1 || current.getDate() === 1;
-
-                                                        if (!showLabel) return null;
-
-                                                        return (
-                                                            <div key={i} style={{
-                                                                position: 'absolute',
-                                                                left: `${i * dayWidth + 5}px`,
-                                                                fontSize: '0.75rem',
-                                                                fontWeight: 'bold',
-                                                                color: '#333',
-                                                                whiteSpace: 'nowrap'
-                                                            }}>
-                                                                {current.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-
-                                                {/* BOSS BARS */}
-                                                <div style={{ position: 'relative', zIndex: 10, paddingTop: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                                    {allBosses.map(boss => {
-                                                        const startDate = boss.start_date ? new Date(boss.start_date) : today;
-                                                        const endDate = boss.deadline ? new Date(boss.deadline) : new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000);
-
-                                                        const startOffset = Math.max(0, (startDate - minDate) / (1000 * 60 * 60 * 24));
-                                                        const duration = Math.max(1, (endDate - startDate) / (1000 * 60 * 60 * 24)); // Min 1 day duration
-
-                                                        const left = startOffset * dayWidth;
-                                                        const width = duration * dayWidth;
-
-                                                        // Determine status color
-                                                        let bgColor, status;
-                                                        if (boss.current_hp === 0) {
-                                                            bgColor = '#e76e55'; // Red
-                                                            status = '💀 DEFEATED';
-                                                        } else if (boss.deadline && new Date(boss.deadline) < today) {
-                                                            bgColor = '#f7d51d'; // Yellow
-                                                            status = '⏰ EXPIRED';
-                                                        } else {
-                                                            bgColor = '#92cc41'; // Green
-                                                            status = '⚔️ ACTIVE';
-                                                        }
-
-                                                        return (
-                                                            <div key={boss.id} style={{ position: 'relative', height: '50px' }}>
-                                                                <div
-                                                                    className="nes-container is-rounded"
-                                                                    style={{
-                                                                        position: 'absolute',
-                                                                        left: `${left}px`,
-                                                                        width: `${Math.max(width, dayWidth)}px`, // Ensure at least 1 day width visible
-                                                                        height: '50px',
-                                                                        backgroundColor: bgColor,
-                                                                        color: status === '⏰ EXPIRED' ? '#000' : '#fff',
-                                                                        padding: '0.25rem 0.5rem',
-                                                                        display: 'flex',
-                                                                        flexDirection: 'column',
-                                                                        justifyContent: 'center',
-                                                                        cursor: 'pointer',
-                                                                        border: '2px solid #000',
-                                                                        whiteSpace: 'nowrap',
-                                                                        overflow: 'hidden',
-                                                                        zIndex: 15,
-                                                                        boxShadow: '2px 2px 0px rgba(0,0,0,0.2)'
-                                                                    }}
-                                                                    title={`${boss.name}\n${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}\nHP: ${boss.current_hp}/${boss.total_hp}`}
-                                                                    onClick={() => {
-                                                                        setSelectedBossId(boss.id);
-                                                                        setActiveTab('battle');
-                                                                    }}
-                                                                >
-                                                                    <div style={{ fontWeight: 'bold', fontSize: '0.8rem', overflow: 'hidden', textOverflow: 'ellipsis' }}>{boss.name}</div>
-                                                                    <div style={{ fontSize: '0.7rem' }}>{status}</div>
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-
-                                                {/* TODAY MARKER */}
-                                                {today >= minDate && today <= maxDate && (
-                                                    <div
-                                                        style={{
-                                                            position: 'absolute',
-                                                            left: `${((today - minDate) / (1000 * 60 * 60 * 24)) * dayWidth}px`,
-                                                            top: '40px', // Below header
-                                                            bottom: 0,
-                                                            width: '2px',
-                                                            backgroundColor: '#209cee',
-                                                            zIndex: 30,
-                                                            pointerEvents: 'none',
-                                                            boxShadow: '0 0 4px rgba(32, 156, 238, 0.5)'
-                                                        }}
-                                                    >
-                                                        <div style={{
-                                                            position: 'absolute',
-                                                            top: '-25px',
-                                                            left: '-20px',
-                                                            backgroundColor: '#209cee',
-                                                            color: '#fff',
-                                                            padding: '2px 4px',
-                                                            borderRadius: '4px',
-                                                            fontSize: '0.6rem',
-                                                            fontWeight: 'bold'
-                                                        }}>
-                                                            TODAY
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    );
-                                })()}
-                            </div>
-                        )}
+                {/* Tabs & Actions */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                    <div>
+                        <button className={`nes-btn ${activeTab === 'battle' ? 'is-primary' : ''}`} onClick={() => setActiveTab('battle')} style={{ marginRight: '1rem' }}>Battle View</button>
+                        <button className={`nes-btn ${activeTab === 'timeline' ? 'is-primary' : ''}`} onClick={() => setActiveTab('timeline')}>Timeline View</button>
                     </div>
-                )
-            }
-
-            {/* Rewards Modal */}
-            {
-                showRewards && (
-                    <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 100 }}>
-                        <div className="nes-container is-rounded is-white" style={{ backgroundColor: 'white', maxWidth: '600px', width: '90%', maxHeight: '90vh', overflowY: 'auto' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <h2>XP Rewards Store</h2>
-                                {isAdmin && (
-                                    <button className="nes-btn is-success is-small" onClick={() => {
-                                        setEditingReward(null);
-                                        setRewardFormData({ name: '', cost: 0, description: '', image_url: '' });
-                                        setShowRewardForm(true);
-                                    }}>+ Add Reward</button>
-                                )}
-                            </div>
-                            <p>Current XP: <span className="nes-text is-success">{user.xp}</span></p>
-
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
-                                {rewards.map(reward => (
-                                    <div key={reward.id} className="nes-container is-centered with-title" style={{ position: 'relative' }}>
-                                        <p className="title">{reward.name}</p>
-                                        {reward.image_url && <img src={reward.image_url} alt={reward.name} style={{ width: '50px', height: '50px', objectFit: 'contain' }} />}
-                                        <p>{reward.cost} XP</p>
-                                        {reward.description && <p style={{ fontSize: '0.8rem', color: '#666' }}>{reward.description}</p>}
-
-                                        <button
-                                            className={`nes-btn ${user.xp >= reward.cost ? 'is-primary' : 'is-disabled'}`}
-                                            onClick={() => user.xp >= reward.cost && handleExchange(reward)}
-                                            disabled={user.xp < reward.cost}
-                                            style={{ marginBottom: '0.5rem' }}
-                                        >
-                                            Exchange
-                                        </button>
-
-                                        {isAdmin && (
-                                            <div style={{ borderTop: '1px dashed #ccc', paddingTop: '0.5rem', display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
-                                                <button className="nes-btn is-warning is-small" onClick={() => {
-                                                    setEditingReward(reward);
-                                                    setRewardFormData({ name: reward.name, cost: reward.cost, description: reward.description || '', image_url: reward.image_url || '' });
-                                                    setShowRewardForm(true);
-                                                }}>Edit</button>
-                                                <button className="nes-btn is-error is-small" onClick={() => handleDeleteReward(reward.id)}>Del</button>
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-
-                            <div style={{ marginTop: '2rem', textAlign: 'right' }}>
-                                <button className="nes-btn" onClick={() => setShowRewards(false)}>Close</button>
-                            </div>
-                        </div>
-                    </div>
-                )
-            }
-
-            {/* Modal for Reward Form */}
-            {showRewardForm && (
-                <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.9)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 110 }}>
-                    <div className="nes-container is-rounded is-white" style={{ backgroundColor: 'white', maxWidth: '500px', width: '90%' }}>
-                        <h2>{editingReward ? 'Edit Reward' : 'New Reward'}</h2>
-                        <form onSubmit={handleSaveReward}>
-                            <div className="nes-field">
-                                <label>Name</label>
-                                <input className="nes-input" value={rewardFormData.name} onChange={e => setRewardFormData({ ...rewardFormData, name: e.target.value })} required />
-                            </div>
-                            <div className="nes-field">
-                                <label>Cost (XP)</label>
-                                <input type="number" className="nes-input" value={rewardFormData.cost} onChange={e => setRewardFormData({ ...rewardFormData, cost: parseInt(e.target.value) })} required min="1" />
-                            </div>
-                            <div className="nes-field">
-                                <label>Description</label>
-                                <input className="nes-input" value={rewardFormData.description} onChange={e => setRewardFormData({ ...rewardFormData, description: e.target.value })} />
-                            </div>
-                            <div className="nes-field">
-                                <label>Image URL</label>
-                                <input className="nes-input" value={rewardFormData.image_url} onChange={e => setRewardFormData({ ...rewardFormData, image_url: e.target.value })} placeholder="https://..." />
-                            </div>
-                            <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'space-between' }}>
-                                <button type="button" className="nes-btn" onClick={() => setShowRewardForm(false)}>Cancel</button>
-                                <button type="submit" className="nes-btn is-primary">Save</button>
-                            </div>
-                        </form>
+                    <div>
+                        <button className="nes-btn is-warning" onClick={() => setShowRewards(true)} style={{ marginRight: '1rem' }}>Rewards</button>
+                        <button className="nes-btn is-error" onClick={() => localStorage.clear() || window.location.reload()}>Logout</button>
                     </div>
                 </div>
-            )}
 
-            {/* Boss Reminder Modal */}
-            {showBossReminder && (
-                <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 120 }}>
-                    <div className="nes-container is-rounded is-white" style={{ backgroundColor: 'white', maxWidth: '400px', width: '90%', textAlign: 'center' }}>
-                        <h2 style={{ color: '#e76e55' }}>Warning!</h2>
-                        <p>The realm has no active Boss!</p>
-                        <p>Heroes are getting restless. Calculate HP and summon a new threat immediately!</p>
-                        <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'center', gap: '1rem' }}>
-                            <button className="nes-btn is-primary" onClick={() => {
-                                setShowBossReminder(false);
-                                setShowBossForm(true);
-                            }}>Summon Boss</button>
-                            <button className="nes-btn" onClick={() => setShowBossReminder(false)}>Later</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Modal for New Task */}
-            {
-                showTaskForm && (
-                    <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 100 }}>
-                        <div className="nes-container is-rounded is-white" style={{ backgroundColor: 'white', maxWidth: '600px', width: '90%', maxHeight: '90vh', overflowY: 'auto' }}>
-                            <h2>New Quest</h2>
-                            <form onSubmit={handleCreateTask}>
-                                <div className="nes-field">
-                                    <label>Title</label>
-                                    <input className="nes-input" value={newTask.title} onChange={e => setNewTask({ ...newTask, title: e.target.value })} required />
-                                </div>
-
-                                <div className="nes-field">
-                                    <label>Boss Damage</label>
-                                    <input type="number" className="nes-input" value={newTask.boss_damage} onChange={e => setNewTask({ ...newTask, boss_damage: parseInt(e.target.value) })} min="0" />
-                                </div>
-                                {/* Lead Assignee */}
-                                <div className="nes-field">
-                                    <label>Lead Assignee (Required)</label>
-                                    <div className="nes-select">
-                                        <select
-                                            value={newTask.lead_assignee}
-                                            onChange={e => setNewTask({ ...newTask, lead_assignee: e.target.value })}
-                                            required
-                                        >
-                                            <option value="">Select Lead...</option>
-                                            {users.map(u => (
-                                                <option key={u.id} value={u.id}>{u.username} ({u.class})</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                </div>
-
-                                {/* Associates */}
-                                <div className="nes-field">
-                                    <label>Associates (Optional)</label>
-                                    <div style={{ maxHeight: '150px', overflowY: 'auto', border: '2px solid black', padding: '0.5rem' }}>
-                                        {users.filter(u => u.id !== parseInt(newTask.lead_assignee)).map(u => (
-                                            <div key={u.id}>
-                                                <label>
-                                                    <input
-                                                        type="checkbox"
-                                                        className="nes-checkbox"
-                                                        checked={newTask.associate_ids.includes(u.id)}
-                                                        onChange={() => toggleAssignee(u.id)}
-                                                    />
-                                                    <span>{u.username} ({u.class})</span>
-                                                </label>
-                                            </div>
+                {
+                    activeTab === 'battle' ? (
+                        <>
+                            {/* Boss Controls */}
+                            <div style={{ marginBottom: '1rem' }}>
+                                {/* Boss Tabs (if multiple bosses) */}
+                                {allBosses.length > 1 && (
+                                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
+                                        {allBosses.map(b => (
+                                            <button
+                                                key={b.id}
+                                                className={`nes-btn ${selectedBossId === b.id ? 'is-primary' : 'is-disabled'}`}
+                                                onClick={() => { setSelectedBossId(b.id); setBoss(b); }}
+                                                style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem' }}
+                                            >
+                                                {b.name}
+                                            </button>
                                         ))}
                                     </div>
-                                </div>
+                                )}
 
-                                <div className="nes-field">
-                                    <label>Description (Optional)</label>
-                                    <textarea
-                                        className="nes-textarea"
-                                        value={newTask.description}
-                                        onChange={e => setNewTask({ ...newTask, description: e.target.value })}
-                                        placeholder="Describe the quest..."
-                                        style={{ minHeight: '4rem' }}
-                                    />
-                                </div>
-
-                                <div className="nes-field">
-                                    <label>Deadline (Optional)</label>
-                                    <input
-                                        type="date"
-                                        className="nes-input"
-                                        value={newTask.deadline}
-                                        onChange={e => setNewTask({ ...newTask, deadline: e.target.value })}
-                                    />
-                                </div>
-
-                                <div className="nes-field">
-                                    <label>Priority</label>
-                                    <div className="nes-select">
-                                        <select value={newTask.priority} onChange={e => setNewTask({ ...newTask, priority: e.target.value })}>
-                                            <option value="LOW">Low</option>
-                                            <option value="MEDIUM">Medium</option>
-                                            <option value="HIGH">High</option>
-                                        </select>
+                                {/* HP Bar - full width */}
+                                {boss ? (
+                                    <div style={{ width: '100%' }}>
+                                        <HPBar boss={boss} />
                                     </div>
-                                </div>
-                                <div className="nes-field">
-                                    <label>Type</label>
-                                    <div className="nes-select">
-                                        <select value={newTask.label} onChange={e => setNewTask({ ...newTask, label: e.target.value })}>
-                                            <option value="FEATURE">Feature</option>
-                                            <option value="BUG">Bug</option>
-                                            <option value="ENHANCEMENT">Enhancement</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'space-between' }}>
-                                    <button type="button" className="nes-btn" onClick={() => setShowTaskForm(false)}>Cancel</button>
-                                    <button type="submit" className="nes-btn is-primary">Create</button>
-                                </div>
-                            </form>
-                        </div>
-                    </div >
-                )
-            }
+                                ) : (
+                                    <span className="nes-text" style={{ fontSize: '0.8rem', color: '#aaa' }}>No Active Boss</span>
+                                )}
 
-            {/* Modal for New Boss (With Dates & Dynamic Tasks) */}
-            {
-                showBossForm && (
-                    <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 100 }}>
-                        <div className="nes-container is-rounded is-white" style={{ backgroundColor: 'white', maxWidth: '600px', width: '90%', maxHeight: '90vh', overflowY: 'auto' }}>
-                            <h2>Summon/Schedule Boss</h2>
-                            <form onSubmit={handleCreateBoss}>
-                                <div className="nes-field">
-                                    <label>Name</label>
-                                    <input className="nes-input" value={newBoss.name} onChange={e => setNewBoss({ ...newBoss, name: e.target.value })} required />
-                                </div>
-
-                                <div className="nes-field">
-                                    <label>Start Date (Optional)</label>
-                                    <input type="date" className="nes-input" value={newBoss.start_date} onChange={e => setNewBoss({ ...newBoss, start_date: e.target.value })} />
-                                </div>
-
-                                <div className="nes-field">
-                                    <label>Deadline (Optional)</label>
-                                    <input type="date" className="nes-input" value={newBoss.deadline} onChange={e => setNewBoss({ ...newBoss, deadline: e.target.value })} />
-                                </div>
-
-                                <div className="nes-field">
-                                    <label>Image URL (Optional)</label>
-                                    <input className="nes-input" value={newBoss.image_url} onChange={e => setNewBoss({ ...newBoss, image_url: e.target.value })} placeholder="https://..." />
-                                </div>
-
-                                <div style={{ marginTop: '1rem', borderTop: '2px dashed #000', paddingTop: '1rem' }}>
-                                    <h3>Initial Quests</h3>
-                                    <p style={{ fontSize: '0.8rem' }}>Add quests to define the Boss's Total HP.</p>
-
-                                    {newBoss.tasks && newBoss.tasks.map((t, idx) => (
-                                        <div key={idx} className="nes-container is-rounded" style={{ padding: '0.5rem', marginBottom: '0.5rem' }}>
-                                            {/* Header */}
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                                                <span style={{ fontWeight: 'bold' }}>Quest #{idx + 1}</span>
-                                                <button type="button" className="nes-btn is-error is-small" onClick={() => {
-                                                    const updatedTasks = newBoss.tasks.filter((_, i) => i !== idx);
-                                                    setNewBoss({ ...newBoss, tasks: updatedTasks });
-                                                }}>X</button>
-                                            </div>
-
-                                            {/* Title */}
-                                            <div className="nes-field">
-                                                <label style={{ fontSize: '0.8rem' }}>Title</label>
-                                                <input className="nes-input is-small" value={t.title} onChange={e => {
-                                                    const updatedTasks = [...newBoss.tasks];
-                                                    updatedTasks[idx].title = e.target.value;
-                                                    setNewBoss({ ...newBoss, tasks: updatedTasks });
-                                                }} required />
-                                            </div>
-
-                                            {/* Damage */}
-                                            <div style={{ marginTop: '0.5rem' }}>
-                                                <label style={{ fontSize: '0.8rem', color: '#666' }}>Boss HP Contribution (DMG)</label>
-                                                <input type="number" className="nes-input is-small" value={t.boss_damage} onChange={e => {
-                                                    const updatedTasks = [...newBoss.tasks];
-                                                    updatedTasks[idx].boss_damage = parseInt(e.target.value) || 0;
-                                                    setNewBoss({ ...newBoss, tasks: updatedTasks });
-                                                }} />
-                                            </div>
-
-                                            {/* Lead Assignee */}
-                                            <div className="nes-field" style={{ marginTop: '0.5rem' }}>
-                                                <label style={{ fontSize: '0.8rem' }}>Lead Assignee</label>
-                                                <div className="nes-select is-small">
-                                                    <select value={t.lead_assignee || ''} onChange={e => {
-                                                        const updatedTasks = [...newBoss.tasks];
-                                                        updatedTasks[idx].lead_assignee = e.target.value;
-                                                        setNewBoss({ ...newBoss, tasks: updatedTasks });
-                                                    }} required>
-                                                        <option value="">Select Lead...</option>
-                                                        {users.map(u => (
-                                                            <option key={u.id} value={u.id}>{u.username} ({u.class})</option>
-                                                        ))}
-                                                    </select>
-                                                </div>
-                                            </div>
-
-                                            {/* Associates */}
-                                            <div className="nes-field" style={{ marginTop: '0.5rem' }}>
-                                                <label style={{ fontSize: '0.8rem' }}>Associates</label>
-                                                <div style={{ maxHeight: '100px', overflowY: 'auto', border: '2px solid black', padding: '0.25rem' }}>
-                                                    {users.filter(u => u.id !== parseInt(t.lead_assignee)).map(u => (
-                                                        <div key={u.id}>
-                                                            <label>
-                                                                <input
-                                                                    type="checkbox"
-                                                                    className="nes-checkbox"
-                                                                    checked={(t.associate_ids || []).includes(u.id)}
-                                                                    onChange={() => {
-                                                                        const updatedTasks = [...newBoss.tasks];
-                                                                        const currentIds = updatedTasks[idx].associate_ids || [];
-                                                                        if (currentIds.includes(u.id)) {
-                                                                            updatedTasks[idx].associate_ids = currentIds.filter(id => id !== u.id);
-                                                                        } else {
-                                                                            updatedTasks[idx].associate_ids = [...currentIds, u.id];
-                                                                        }
-                                                                        setNewBoss({ ...newBoss, tasks: updatedTasks });
-                                                                    }}
-                                                                />
-                                                                <span style={{ fontSize: '0.8rem' }}>{u.username}</span>
-                                                            </label>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-
-                                            {/* Description */}
-                                            <div className="nes-field" style={{ marginTop: '0.5rem' }}>
-                                                <label style={{ fontSize: '0.8rem' }}>Description</label>
-                                                <textarea className="nes-textarea is-small" value={t.description || ''} onChange={e => {
-                                                    const updatedTasks = [...newBoss.tasks];
-                                                    updatedTasks[idx].description = e.target.value;
-                                                    setNewBoss({ ...newBoss, tasks: updatedTasks });
-                                                }} style={{ minHeight: '3rem' }} />
-                                            </div>
-
-                                            {/* Priority & Label */}
-                                            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-                                                <div className="nes-field" style={{ flex: 1 }}>
-                                                    <label style={{ fontSize: '0.8rem' }}>Priority</label>
-                                                    <div className="nes-select is-small">
-                                                        <select value={t.priority || 'MEDIUM'} onChange={e => {
-                                                            const updatedTasks = [...newBoss.tasks];
-                                                            updatedTasks[idx].priority = e.target.value;
-                                                            setNewBoss({ ...newBoss, tasks: updatedTasks });
-                                                        }}>
-                                                            <option value="LOW">Low</option>
-                                                            <option value="MEDIUM">Medium</option>
-                                                            <option value="HIGH">High</option>
-                                                        </select>
-                                                    </div>
-                                                </div>
-                                                <div className="nes-field" style={{ flex: 1 }}>
-                                                    <label style={{ fontSize: '0.8rem' }}>Label</label>
-                                                    <div className="nes-select is-small">
-                                                        <select value={t.label || 'FEATURE'} onChange={e => {
-                                                            const updatedTasks = [...newBoss.tasks];
-                                                            updatedTasks[idx].label = e.target.value;
-                                                            setNewBoss({ ...newBoss, tasks: updatedTasks });
-                                                        }}>
-                                                            <option value="FEATURE">Feature</option>
-                                                            <option value="BUG">Bug</option>
-                                                            <option value="ENHANCEMENT">Enhancement</option>
-                                                        </select>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {/* Task Deadline */}
-                                            <div className="nes-field" style={{ marginTop: '0.5rem' }}>
-                                                <label style={{ fontSize: '0.8rem' }}>Task Deadline</label>
-                                                <input type="date" className="nes-input is-small" value={t.deadline ? t.deadline.split('T')[0] : ''} onChange={e => {
-                                                    const updatedTasks = [...newBoss.tasks];
-                                                    updatedTasks[idx].deadline = e.target.value;
-                                                    setNewBoss({ ...newBoss, tasks: updatedTasks });
-                                                }} />
-                                            </div>
+                                {/* All action buttons below HP bar, aligned left */}
+                                {isAdmin && (
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', marginTop: '0.75rem' }}>
+                                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                            <button className="nes-btn is-success" onClick={() => setShowTaskForm(true)} style={{ fontSize: '0.75rem' }}>+ New Quest</button>
+                                            <button className="nes-btn is-primary" onClick={() => setShowBossForm(true)} style={{ fontSize: '0.75rem' }}>Summon Boss</button>
                                         </div>
-                                    ))}
-
-                                    <button type="button" className="nes-btn" onClick={() => {
-                                        setNewBoss({
-                                            ...newBoss,
-                                            tasks: [...(newBoss.tasks || []), {
-                                                title: '',
-                                                xp_reward: 0,
-                                                boss_damage: 10,
-                                                lead_assignee: '',
-                                                associate_ids: [],
-                                                description: '',
-                                                priority: 'MEDIUM',
-                                                label: 'FEATURE',
-                                                deadline: ''
-                                            }]
-                                        });
-                                    }}>+ Add Quest</button>
-                                </div>
-
-                                <div style={{ marginTop: '1rem', textAlign: 'center' }}>
-                                    <span className="nes-text is-error" style={{ fontSize: '1.2rem' }}>
-                                        Total HP: {(newBoss.tasks || []).reduce((sum, t) => sum + (parseInt(t.boss_damage) || 0), 0)}
-                                    </span>
-                                </div>
-
-                                <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'space-between' }}>
-                                    <button type="button" className="nes-btn" onClick={() => setShowBossForm(false)}>Cancel</button>
-                                    <button type="submit" className="nes-btn is-error">召喚 (Summon/Schedule)</button>
-                                </div>
-                            </form>
-                        </div >
-                    </div >
-                )
-            }
-
-            {/* Modal for Edit Boss */}
-            {
-                showEditBossForm && (
-                    <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 100 }}>
-                        <div className="nes-container is-rounded is-white" style={{ backgroundColor: 'white', maxWidth: '600px', width: '90%', maxHeight: '90vh', overflowY: 'auto' }}>
-                            <h2>Edit Boss</h2>
-                            <form onSubmit={handleUpdateBoss}>
-                                <div className="nes-field">
-                                    <label>Name</label>
-                                    <input
-                                        className="nes-input"
-                                        value={editBossData.name}
-                                        onChange={e => setEditBossData({ ...editBossData, name: e.target.value })}
-                                        required
-                                    />
-                                </div>
-
-                                <div className="nes-field">
-                                    <label>Image URL (Optional)</label>
-                                    <input
-                                        className="nes-input"
-                                        value={editBossData.image_url}
-                                        onChange={e => setEditBossData({ ...editBossData, image_url: e.target.value })}
-                                        placeholder="https://..."
-                                    />
-                                </div>
-
-                                <div className="nes-field">
-                                    <label>Start Date (Optional)</label>
-                                    <input
-                                        type="date"
-                                        className="nes-input"
-                                        value={editBossData.start_date}
-                                        onChange={e => setEditBossData({ ...editBossData, start_date: e.target.value })}
-                                    />
-                                </div>
-
-                                <div className="nes-field">
-                                    <label>Deadline (Optional)</label>
-                                    <input
-                                        type="date"
-                                        className="nes-input"
-                                        value={editBossData.deadline}
-                                        onChange={e => setEditBossData({ ...editBossData, deadline: e.target.value })}
-                                    />
-                                </div>
-
-                                <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'space-between' }}>
-                                    <button type="button" className="nes-btn" onClick={() => setShowEditBossForm(false)}>Cancel</button>
-                                    <button type="submit" className="nes-btn is-warning">Update Boss</button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                )
-            }
-            {/* Victory Popup */}
-            {showVictoryPopup && boss && (
-                <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 200 }}>
-                    <div className="nes-container is-rounded is-centered is-dark" style={{ backgroundColor: '#212529', color: '#fff', maxWidth: '600px', width: '90%', border: '4px solid #F7D51D' }}>
-                        <i className="nes-icon trophy is-large"></i>
-                        <h2 style={{ color: '#F7D51D', marginTop: '1rem' }}>VICTORY!</h2>
-                        <p style={{ fontSize: '1.2rem' }}>The Boss <strong>{boss.name}</strong> has been defeated!</p>
-
-                        <div style={{ margin: '2rem 0', textAlign: 'left' }}>
-                            <p style={{ borderBottom: '2px solid #fff', paddingBottom: '0.5rem' }}>Heroes of the Realm:</p>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                                {(() => {
-                                    // Get all DONE tasks for this boss
-                                    const completedTasks = tasks.filter(t => t.boss_id === boss.id && t.status === 'DONE');
-                                    const contributorIds = new Set();
-
-                                    completedTasks.forEach(t => {
-                                        if (t.Assignees) {
-                                            t.Assignees.forEach(u => contributorIds.add(u.id));
-                                        }
-                                        // Also add lead assignee if not in Assignees list for some reason (though robust data should have it)
-                                        if (t.assigned_to) contributorIds.add(t.assigned_to);
-                                    });
-
-                                    if (contributorIds.size === 0) return <p>No specific heroes recorded.</p>;
-
-                                    return Array.from(contributorIds).map(id => {
-                                        const u = users.find(user => user.id === id);
-                                        if (!u) return null;
-                                        return (
-                                            <span key={u.id} className="nes-badge">
-                                                <span className="is-warning">{u.username}</span>
-                                            </span>
-                                        );
-                                    });
-                                })()}
+                                        {boss && (
+                                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                                <button className="nes-btn is-warning" onClick={handleEditBossClick} style={{ fontSize: '0.75rem' }}>Edit Boss</button>
+                                                <button className="nes-btn is-error" onClick={handleDeleteBoss} style={{ fontSize: '0.75rem' }}>Delete Boss</button>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
-                        </div>
 
-                        <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', marginTop: '2rem' }}>
-                            <button className="nes-btn" onClick={() => {
-                                setShowVictoryPopup(false);
-                                setVictoryDismissed(true);
-                            }}>Close</button>
-                            {isAdmin && (
-                                <button className="nes-btn is-error" onClick={() => {
-                                    handleDeleteBoss();
-                                    // No need to close explicitly as deleting boss triggers null boss state
-                                }}>Delete Boss</button>
+                            {/* Task Board */}
+                            <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                                <div className="nes-container with-title" style={{ flex: '1 1 calc(33.333% - 0.67rem)', minWidth: '280px', backgroundColor: 'rgba(10, 10, 46, 0.85)', borderColor: '#4a4a8a', color: '#e0e0ff' }}>
+                                    <p className="title" style={{ backgroundColor: 'rgba(10, 10, 46, 0.95)', color: '#6af' }}>To Do</p>
+                                    {todoTasks.map(t => <TaskCard key={t.id} task={t} onMove={handleMoveTask} users={users} onNotify={setNotification} />)}
+                                    {todoTasks.length === 0 && <p style={{ fontSize: '0.7rem', color: '#6a6aaa', fontStyle: 'italic' }}>No quests</p>}
+                                </div>
+                                <div className="nes-container with-title" style={{ flex: '1 1 calc(33.333% - 0.67rem)', minWidth: '280px', backgroundColor: 'rgba(10, 10, 46, 0.85)', borderColor: '#4a4a8a', color: '#e0e0ff' }}>
+                                    <p className="title" style={{ backgroundColor: 'rgba(10, 10, 46, 0.95)', color: '#fa4' }}>In Progress</p>
+                                    {wipTasks.map(t => <TaskCard key={t.id} task={t} onMove={handleMoveTask} users={users} onNotify={setNotification} />)}
+                                    {wipTasks.length === 0 && <p style={{ fontSize: '0.7rem', color: '#6a6aaa', fontStyle: 'italic' }}>No quests</p>}
+                                </div>
+                                <div className="nes-container with-title" style={{ flex: '1 1 calc(33.333% - 0.67rem)', minWidth: '280px', backgroundColor: 'rgba(10, 10, 46, 0.85)', borderColor: '#4a4a8a', color: '#e0e0ff' }}>
+                                    <p className="title" style={{ backgroundColor: 'rgba(10, 10, 46, 0.95)', color: '#4f4' }}>Completed</p>
+                                    {doneTasks.map(t => <TaskCard key={t.id} task={t} onMove={handleMoveTask} users={users} onNotify={setNotification} />)}
+                                    {doneTasks.length === 0 && <p style={{ fontSize: '0.7rem', color: '#6a6aaa', fontStyle: 'italic' }}>No quests</p>}
+                                </div>
+                            </div>
+                        </>
+                    ) : (
+                        /* Timeline View - Calendar */
+                        <div className="nes-container with-title" style={{ backgroundColor: 'rgba(10, 10, 46, 0.85)', borderColor: '#4a4a8a', color: '#e0e0ff' }}>
+                            <p className="title" style={{ backgroundColor: 'rgba(10, 10, 46, 0.95)', color: '#6af' }}>Boss Timeline Calendar</p>
+                            {allBosses.length === 0 ? <p style={{ color: '#6a6aaa' }}>No bosses recorded.</p> : (
+                                <div style={{ padding: '0.5rem' }}>
+                                    {(() => {
+                                        // Calculate date range for calendar
+                                        const today = new Date();
+                                        today.setHours(0, 0, 0, 0);
+
+                                        const bossDates = allBosses.flatMap(b => [
+                                            b.start_date ? new Date(b.start_date) : null,
+                                            b.deadline ? new Date(b.deadline) : null
+                                        ]).filter(d => d && !isNaN(d.getTime()));
+
+                                        const minDate = bossDates.length > 0
+                                            ? new Date(Math.min(...bossDates.map(d => d.getTime())))
+                                            : new Date(today.getFullYear(), today.getMonth(), 1);
+
+                                        const maxDate = bossDates.length > 0
+                                            ? new Date(Math.max(...bossDates.map(d => d.getTime())))
+                                            : new Date(today.getFullYear(), today.getMonth() + 3, 0);
+
+                                        // Add significant padding for visibility
+                                        minDate.setDate(minDate.getDate() - 15); // Increased left padding
+                                        maxDate.setDate(maxDate.getDate() + 15); // Increased right padding
+
+                                        const totalDays = Math.max(1, Math.ceil((maxDate - minDate) / (1000 * 60 * 60 * 24))); // Ensure at least 1 day
+                                        const dayWidth = 60; // Slightly wider
+                                        const totalWidth = Math.max(totalDays * dayWidth, 800); // Ensure min width
+                                        const contentHeight = (allBosses.length * 70) + 60;
+
+                                        return (
+                                            <div style={{ overflowX: 'auto', width: '100%', maxWidth: '100%', margin: '0 auto', border: '1px solid #4a4a8a', borderRadius: '4px', backgroundColor: 'rgba(5, 5, 30, 0.8)', position: 'relative' }}>
+                                                <div style={{ position: 'relative', width: `${totalWidth}px`, minWidth: '100%', height: `${contentHeight}px` }}>
+
+                                                    {/* BACKGROUND GRID (Vertical Lines) */}
+                                                    <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 0 }}>
+                                                        {Array.from({ length: totalDays + 1 }).map((_, i) => {
+                                                            const current = new Date(minDate);
+                                                            current.setDate(minDate.getDate() + i);
+                                                            const isWeekStart = current.getDay() === 1; // Monday
+                                                            return (
+                                                                <div key={i} style={{
+                                                                    position: 'absolute',
+                                                                    left: `${i * dayWidth}px`,
+                                                                    top: 0,
+                                                                    bottom: 0,
+                                                                    borderLeft: isWeekStart ? '1px solid #4a4a8a' : '1px dashed #2a2a5a',
+                                                                    backgroundColor: (current.getDay() === 0 || current.getDay() === 6) ? 'rgba(100,100,255,0.05)' : 'transparent'
+                                                                }} />
+                                                            );
+                                                        })}
+                                                    </div>
+
+                                                    {/* TIME AXIS (Sticky Header) */}
+                                                    <div style={{
+                                                        height: '40px',
+                                                        borderBottom: '2px solid #4a4a8a',
+                                                        position: 'sticky',
+                                                        top: 0,
+                                                        backgroundColor: 'rgba(10, 10, 40, 0.95)',
+                                                        zIndex: 20,
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        boxShadow: '0 2px 4px rgba(0,0,0,0.3)'
+                                                    }}>
+                                                        {Array.from({ length: totalDays + 1 }).map((_, i) => {
+                                                            const current = new Date(minDate);
+                                                            current.setDate(minDate.getDate() + i);
+                                                            // Show label every Monday (1) and start of month
+                                                            const showLabel = current.getDay() === 1 || current.getDate() === 1;
+
+                                                            if (!showLabel) return null;
+
+                                                            return (
+                                                                <div key={i} style={{
+                                                                    position: 'absolute',
+                                                                    left: `${i * dayWidth + 5}px`,
+                                                                    fontSize: '0.75rem',
+                                                                    fontWeight: 'bold',
+                                                                    color: '#8a8acc',
+                                                                    whiteSpace: 'nowrap'
+                                                                }}>
+                                                                    {current.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+
+                                                    {/* BOSS BARS */}
+                                                    <div style={{ position: 'relative', zIndex: 10, paddingTop: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                                        {allBosses.map(boss => {
+                                                            const startDate = boss.start_date ? new Date(boss.start_date) : today;
+                                                            const endDate = boss.deadline ? new Date(boss.deadline) : new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+                                                            const startOffset = Math.max(0, (startDate - minDate) / (1000 * 60 * 60 * 24));
+                                                            const duration = Math.max(1, (endDate - startDate) / (1000 * 60 * 60 * 24)); // Min 1 day duration
+
+                                                            const left = startOffset * dayWidth;
+                                                            const width = duration * dayWidth;
+
+                                                            // Determine status color
+                                                            let bgColor, status;
+                                                            if (boss.current_hp === 0) {
+                                                                bgColor = '#e76e55'; // Red
+                                                                status = '💀 DEFEATED';
+                                                            } else if (boss.deadline && new Date(boss.deadline) < today) {
+                                                                bgColor = '#f7d51d'; // Yellow
+                                                                status = '⏰ EXPIRED';
+                                                            } else {
+                                                                bgColor = '#92cc41'; // Green
+                                                                status = '⚔️ ACTIVE';
+                                                            }
+
+                                                            return (
+                                                                <div key={boss.id} style={{ position: 'relative', height: '50px' }}>
+                                                                    <div
+                                                                        className="nes-container is-rounded"
+                                                                        style={{
+                                                                            position: 'absolute',
+                                                                            left: `${left}px`,
+                                                                            width: `${Math.max(width, dayWidth)}px`, // Ensure at least 1 day width visible
+                                                                            height: '50px',
+                                                                            backgroundColor: bgColor,
+                                                                            color: status === '⏰ EXPIRED' ? '#000' : '#fff',
+                                                                            padding: '0.25rem 0.5rem',
+                                                                            display: 'flex',
+                                                                            flexDirection: 'column',
+                                                                            justifyContent: 'center',
+                                                                            cursor: 'pointer',
+                                                                            border: '2px solid #000',
+                                                                            whiteSpace: 'nowrap',
+                                                                            overflow: 'hidden',
+                                                                            zIndex: 15,
+                                                                            boxShadow: '2px 2px 0px rgba(0,0,0,0.2)'
+                                                                        }}
+                                                                        title={`${boss.name}\n${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}\nHP: ${boss.current_hp}/${boss.total_hp}`}
+                                                                        onClick={() => {
+                                                                            setSelectedBossId(boss.id);
+                                                                            setActiveTab('battle');
+                                                                        }}
+                                                                    >
+                                                                        <div style={{ fontWeight: 'bold', fontSize: '0.8rem', overflow: 'hidden', textOverflow: 'ellipsis' }}>{boss.name}</div>
+                                                                        <div style={{ fontSize: '0.7rem' }}>{status}</div>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+
+                                                    {/* TODAY MARKER */}
+                                                    {today >= minDate && today <= maxDate && (
+                                                        <div
+                                                            style={{
+                                                                position: 'absolute',
+                                                                left: `${((today - minDate) / (1000 * 60 * 60 * 24)) * dayWidth}px`,
+                                                                top: '40px', // Below header
+                                                                bottom: 0,
+                                                                width: '2px',
+                                                                backgroundColor: '#209cee',
+                                                                zIndex: 30,
+                                                                pointerEvents: 'none',
+                                                                boxShadow: '0 0 4px rgba(32, 156, 238, 0.5)'
+                                                            }}
+                                                        >
+                                                            <div style={{
+                                                                position: 'absolute',
+                                                                top: '-25px',
+                                                                left: '-20px',
+                                                                backgroundColor: '#209cee',
+                                                                color: '#fff',
+                                                                padding: '2px 4px',
+                                                                borderRadius: '4px',
+                                                                fontSize: '0.6rem',
+                                                                fontWeight: 'bold'
+                                                            }}>
+                                                                TODAY
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
+                                </div>
                             )}
                         </div>
+                    )
+                }
+
+                {/* Rewards Modal */}
+                {
+                    showRewards && (
+                        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 100 }}>
+                            <div className="nes-container is-rounded is-white" style={{ backgroundColor: 'white', maxWidth: '600px', width: '90%', maxHeight: '90vh', overflowY: 'auto' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <h2>XP Rewards Store</h2>
+                                    {isAdmin && (
+                                        <button className="nes-btn is-success is-small" onClick={() => {
+                                            setEditingReward(null);
+                                            setRewardFormData({ name: '', cost: 0, description: '', image_url: '' });
+                                            setShowRewardForm(true);
+                                        }}>+ Add Reward</button>
+                                    )}
+                                </div>
+                                <p>Current XP: <span className="nes-text is-success">{user.xp}</span></p>
+
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
+                                    {rewards.map(reward => (
+                                        <div key={reward.id} className="nes-container is-centered with-title" style={{ position: 'relative' }}>
+                                            <p className="title">{reward.name}</p>
+                                            {reward.image_url && <img src={reward.image_url} alt={reward.name} style={{ width: '50px', height: '50px', objectFit: 'contain' }} />}
+                                            <p>{reward.cost} XP</p>
+                                            {reward.description && <p style={{ fontSize: '0.8rem', color: '#666' }}>{reward.description}</p>}
+
+                                            <button
+                                                className={`nes-btn ${user.xp >= reward.cost ? 'is-primary' : 'is-disabled'}`}
+                                                onClick={() => user.xp >= reward.cost && handleExchange(reward)}
+                                                disabled={user.xp < reward.cost}
+                                                style={{ marginBottom: '0.5rem' }}
+                                            >
+                                                Exchange
+                                            </button>
+
+                                            {isAdmin && (
+                                                <div style={{ borderTop: '1px dashed #ccc', paddingTop: '0.5rem', display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                                                    <button className="nes-btn is-warning is-small" onClick={() => {
+                                                        setEditingReward(reward);
+                                                        setRewardFormData({ name: reward.name, cost: reward.cost, description: reward.description || '', image_url: reward.image_url || '' });
+                                                        setShowRewardForm(true);
+                                                    }}>Edit</button>
+                                                    <button className="nes-btn is-error is-small" onClick={() => handleDeleteReward(reward.id)}>Del</button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div style={{ marginTop: '2rem', textAlign: 'right' }}>
+                                    <button className="nes-btn" onClick={() => setShowRewards(false)}>Close</button>
+                                </div>
+                            </div>
+                        </div>
+                    )
+                }
+
+                {/* Modal for Reward Form */}
+                {showRewardForm && (
+                    <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.9)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 110 }}>
+                        <div className="nes-container is-rounded is-white" style={{ backgroundColor: 'white', maxWidth: '500px', width: '90%' }}>
+                            <h2>{editingReward ? 'Edit Reward' : 'New Reward'}</h2>
+                            <form onSubmit={handleSaveReward}>
+                                <div className="nes-field">
+                                    <label>Name</label>
+                                    <input className="nes-input" value={rewardFormData.name} onChange={e => setRewardFormData({ ...rewardFormData, name: e.target.value })} required />
+                                </div>
+                                <div className="nes-field">
+                                    <label>Cost (XP)</label>
+                                    <input type="number" className="nes-input" value={rewardFormData.cost} onChange={e => setRewardFormData({ ...rewardFormData, cost: parseInt(e.target.value) })} required min="1" />
+                                </div>
+                                <div className="nes-field">
+                                    <label>Description</label>
+                                    <input className="nes-input" value={rewardFormData.description} onChange={e => setRewardFormData({ ...rewardFormData, description: e.target.value })} />
+                                </div>
+                                <div className="nes-field">
+                                    <label>Image URL</label>
+                                    <input className="nes-input" value={rewardFormData.image_url} onChange={e => setRewardFormData({ ...rewardFormData, image_url: e.target.value })} placeholder="https://..." />
+                                </div>
+                                <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'space-between' }}>
+                                    <button type="button" className="nes-btn" onClick={() => setShowRewardForm(false)}>Cancel</button>
+                                    <button type="submit" className="nes-btn is-primary">Save</button>
+                                </div>
+                            </form>
+                        </div>
                     </div>
-                </div>
-            )}
-        </div >
+                )}
+
+                {/* Boss Reminder Modal */}
+                {showBossReminder && (
+                    <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 120 }}>
+                        <div className="nes-container is-rounded is-white" style={{ backgroundColor: 'white', maxWidth: '400px', width: '90%', textAlign: 'center' }}>
+                            <h2 style={{ color: '#e76e55' }}>Warning!</h2>
+                            <p>The realm has no active Boss!</p>
+                            <p>Heroes are getting restless. Calculate HP and summon a new threat immediately!</p>
+                            <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'center', gap: '1rem' }}>
+                                <button className="nes-btn is-primary" onClick={() => {
+                                    setShowBossReminder(false);
+                                    setShowBossForm(true);
+                                }}>Summon Boss</button>
+                                <button className="nes-btn" onClick={() => setShowBossReminder(false)}>Later</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Modal for New Task */}
+                {
+                    showTaskForm && (
+                        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 100 }}>
+                            <div className="nes-container is-rounded is-white" style={{ backgroundColor: 'white', maxWidth: '600px', width: '90%', maxHeight: '90vh', overflowY: 'auto' }}>
+                                <h2>New Quest</h2>
+                                <form onSubmit={handleCreateTask}>
+                                    <div className="nes-field">
+                                        <label>Title</label>
+                                        <input className="nes-input" value={newTask.title} onChange={e => setNewTask({ ...newTask, title: e.target.value })} required />
+                                    </div>
+
+                                    <div className="nes-field">
+                                        <label>Boss Damage</label>
+                                        <input type="number" className="nes-input" value={newTask.boss_damage} onChange={e => setNewTask({ ...newTask, boss_damage: parseInt(e.target.value) })} min="0" />
+                                    </div>
+                                    {/* Lead Assignee */}
+                                    <div className="nes-field">
+                                        <label>Lead Assignee (Required)</label>
+                                        <div className="nes-select">
+                                            <select
+                                                value={newTask.lead_assignee}
+                                                onChange={e => setNewTask({ ...newTask, lead_assignee: e.target.value })}
+                                                required
+                                            >
+                                                <option value="">Select Lead...</option>
+                                                {users.map(u => (
+                                                    <option key={u.id} value={u.id}>{u.username} ({u.class})</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    {/* Associates */}
+                                    <div className="nes-field">
+                                        <label>Associates (Optional)</label>
+                                        <div style={{ maxHeight: '150px', overflowY: 'auto', border: '2px solid black', padding: '0.5rem' }}>
+                                            {users.filter(u => u.id !== parseInt(newTask.lead_assignee)).map(u => (
+                                                <div key={u.id}>
+                                                    <label>
+                                                        <input
+                                                            type="checkbox"
+                                                            className="nes-checkbox"
+                                                            checked={newTask.associate_ids.includes(u.id)}
+                                                            onChange={() => toggleAssignee(u.id)}
+                                                        />
+                                                        <span>{u.username} ({u.class})</span>
+                                                    </label>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="nes-field">
+                                        <label>Description (Optional)</label>
+                                        <textarea
+                                            className="nes-textarea"
+                                            value={newTask.description}
+                                            onChange={e => setNewTask({ ...newTask, description: e.target.value })}
+                                            placeholder="Describe the quest..."
+                                            style={{ minHeight: '4rem' }}
+                                        />
+                                    </div>
+
+                                    <div className="nes-field">
+                                        <label>Deadline (Optional)</label>
+                                        <input
+                                            type="date"
+                                            className="nes-input"
+                                            value={newTask.deadline}
+                                            onChange={e => setNewTask({ ...newTask, deadline: e.target.value })}
+                                        />
+                                    </div>
+
+                                    <div className="nes-field">
+                                        <label>Priority</label>
+                                        <div className="nes-select">
+                                            <select value={newTask.priority} onChange={e => setNewTask({ ...newTask, priority: e.target.value })}>
+                                                <option value="LOW">Low</option>
+                                                <option value="MEDIUM">Medium</option>
+                                                <option value="HIGH">High</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div className="nes-field">
+                                        <label>Type</label>
+                                        <div className="nes-select">
+                                            <select value={newTask.label} onChange={e => setNewTask({ ...newTask, label: e.target.value })}>
+                                                <option value="FEATURE">Feature</option>
+                                                <option value="BUG">Bug</option>
+                                                <option value="ENHANCEMENT">Enhancement</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'space-between' }}>
+                                        <button type="button" className="nes-btn" onClick={() => setShowTaskForm(false)}>Cancel</button>
+                                        <button type="submit" className="nes-btn is-primary">Create</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div >
+                    )
+                }
+
+                {/* Modal for New Boss (With Dates & Dynamic Tasks) */}
+                {
+                    showBossForm && (
+                        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 100 }}>
+                            <div className="nes-container is-rounded is-white" style={{ backgroundColor: 'white', maxWidth: '600px', width: '90%', maxHeight: '90vh', overflowY: 'auto' }}>
+                                <h2>Summon/Schedule Boss</h2>
+                                <form onSubmit={handleCreateBoss}>
+                                    <div className="nes-field">
+                                        <label>Name</label>
+                                        <input className="nes-input" value={newBoss.name} onChange={e => setNewBoss({ ...newBoss, name: e.target.value })} required />
+                                    </div>
+
+                                    <div className="nes-field">
+                                        <label>Start Date (Optional)</label>
+                                        <input type="date" className="nes-input" value={newBoss.start_date} onChange={e => setNewBoss({ ...newBoss, start_date: e.target.value })} />
+                                    </div>
+
+                                    <div className="nes-field">
+                                        <label>Deadline (Optional)</label>
+                                        <input type="date" className="nes-input" value={newBoss.deadline} onChange={e => setNewBoss({ ...newBoss, deadline: e.target.value })} />
+                                    </div>
+
+                                    <div className="nes-field">
+                                        <label>Image URL (Optional)</label>
+                                        <input className="nes-input" value={newBoss.image_url} onChange={e => setNewBoss({ ...newBoss, image_url: e.target.value })} placeholder="https://..." />
+                                    </div>
+
+                                    <div style={{ marginTop: '1rem', borderTop: '2px dashed #000', paddingTop: '1rem' }}>
+                                        <h3>Initial Quests</h3>
+                                        <p style={{ fontSize: '0.8rem' }}>Add quests to define the Boss's Total HP.</p>
+
+                                        {newBoss.tasks && newBoss.tasks.map((t, idx) => (
+                                            <div key={idx} className="nes-container is-rounded" style={{ padding: '0.5rem', marginBottom: '0.5rem' }}>
+                                                {/* Header */}
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                                                    <span style={{ fontWeight: 'bold' }}>Quest #{idx + 1}</span>
+                                                    <button type="button" className="nes-btn is-error is-small" onClick={() => {
+                                                        const updatedTasks = newBoss.tasks.filter((_, i) => i !== idx);
+                                                        setNewBoss({ ...newBoss, tasks: updatedTasks });
+                                                    }}>X</button>
+                                                </div>
+
+                                                {/* Title */}
+                                                <div className="nes-field">
+                                                    <label style={{ fontSize: '0.8rem' }}>Title</label>
+                                                    <input className="nes-input is-small" value={t.title} onChange={e => {
+                                                        const updatedTasks = [...newBoss.tasks];
+                                                        updatedTasks[idx].title = e.target.value;
+                                                        setNewBoss({ ...newBoss, tasks: updatedTasks });
+                                                    }} required />
+                                                </div>
+
+                                                {/* Damage */}
+                                                <div style={{ marginTop: '0.5rem' }}>
+                                                    <label style={{ fontSize: '0.8rem', color: '#666' }}>Boss HP Contribution (DMG)</label>
+                                                    <input type="number" className="nes-input is-small" value={t.boss_damage} onChange={e => {
+                                                        const updatedTasks = [...newBoss.tasks];
+                                                        updatedTasks[idx].boss_damage = parseInt(e.target.value) || 0;
+                                                        setNewBoss({ ...newBoss, tasks: updatedTasks });
+                                                    }} />
+                                                </div>
+
+                                                {/* Lead Assignee */}
+                                                <div className="nes-field" style={{ marginTop: '0.5rem' }}>
+                                                    <label style={{ fontSize: '0.8rem' }}>Lead Assignee</label>
+                                                    <div className="nes-select is-small">
+                                                        <select value={t.lead_assignee || ''} onChange={e => {
+                                                            const updatedTasks = [...newBoss.tasks];
+                                                            updatedTasks[idx].lead_assignee = e.target.value;
+                                                            setNewBoss({ ...newBoss, tasks: updatedTasks });
+                                                        }} required>
+                                                            <option value="">Select Lead...</option>
+                                                            {users.map(u => (
+                                                                <option key={u.id} value={u.id}>{u.username} ({u.class})</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                </div>
+
+                                                {/* Associates */}
+                                                <div className="nes-field" style={{ marginTop: '0.5rem' }}>
+                                                    <label style={{ fontSize: '0.8rem' }}>Associates</label>
+                                                    <div style={{ maxHeight: '100px', overflowY: 'auto', border: '2px solid black', padding: '0.25rem' }}>
+                                                        {users.filter(u => u.id !== parseInt(t.lead_assignee)).map(u => (
+                                                            <div key={u.id}>
+                                                                <label>
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        className="nes-checkbox"
+                                                                        checked={(t.associate_ids || []).includes(u.id)}
+                                                                        onChange={() => {
+                                                                            const updatedTasks = [...newBoss.tasks];
+                                                                            const currentIds = updatedTasks[idx].associate_ids || [];
+                                                                            if (currentIds.includes(u.id)) {
+                                                                                updatedTasks[idx].associate_ids = currentIds.filter(id => id !== u.id);
+                                                                            } else {
+                                                                                updatedTasks[idx].associate_ids = [...currentIds, u.id];
+                                                                            }
+                                                                            setNewBoss({ ...newBoss, tasks: updatedTasks });
+                                                                        }}
+                                                                    />
+                                                                    <span style={{ fontSize: '0.8rem' }}>{u.username}</span>
+                                                                </label>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+
+                                                {/* Description */}
+                                                <div className="nes-field" style={{ marginTop: '0.5rem' }}>
+                                                    <label style={{ fontSize: '0.8rem' }}>Description</label>
+                                                    <textarea className="nes-textarea is-small" value={t.description || ''} onChange={e => {
+                                                        const updatedTasks = [...newBoss.tasks];
+                                                        updatedTasks[idx].description = e.target.value;
+                                                        setNewBoss({ ...newBoss, tasks: updatedTasks });
+                                                    }} style={{ minHeight: '3rem' }} />
+                                                </div>
+
+                                                {/* Priority & Label */}
+                                                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                                                    <div className="nes-field" style={{ flex: 1 }}>
+                                                        <label style={{ fontSize: '0.8rem' }}>Priority</label>
+                                                        <div className="nes-select is-small">
+                                                            <select value={t.priority || 'MEDIUM'} onChange={e => {
+                                                                const updatedTasks = [...newBoss.tasks];
+                                                                updatedTasks[idx].priority = e.target.value;
+                                                                setNewBoss({ ...newBoss, tasks: updatedTasks });
+                                                            }}>
+                                                                <option value="LOW">Low</option>
+                                                                <option value="MEDIUM">Medium</option>
+                                                                <option value="HIGH">High</option>
+                                                            </select>
+                                                        </div>
+                                                    </div>
+                                                    <div className="nes-field" style={{ flex: 1 }}>
+                                                        <label style={{ fontSize: '0.8rem' }}>Label</label>
+                                                        <div className="nes-select is-small">
+                                                            <select value={t.label || 'FEATURE'} onChange={e => {
+                                                                const updatedTasks = [...newBoss.tasks];
+                                                                updatedTasks[idx].label = e.target.value;
+                                                                setNewBoss({ ...newBoss, tasks: updatedTasks });
+                                                            }}>
+                                                                <option value="FEATURE">Feature</option>
+                                                                <option value="BUG">Bug</option>
+                                                                <option value="ENHANCEMENT">Enhancement</option>
+                                                            </select>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Task Deadline */}
+                                                <div className="nes-field" style={{ marginTop: '0.5rem' }}>
+                                                    <label style={{ fontSize: '0.8rem' }}>Task Deadline</label>
+                                                    <input type="date" className="nes-input is-small" value={t.deadline ? t.deadline.split('T')[0] : ''} onChange={e => {
+                                                        const updatedTasks = [...newBoss.tasks];
+                                                        updatedTasks[idx].deadline = e.target.value;
+                                                        setNewBoss({ ...newBoss, tasks: updatedTasks });
+                                                    }} />
+                                                </div>
+                                            </div>
+                                        ))}
+
+                                        <button type="button" className="nes-btn" onClick={() => {
+                                            setNewBoss({
+                                                ...newBoss,
+                                                tasks: [...(newBoss.tasks || []), {
+                                                    title: '',
+                                                    xp_reward: 0,
+                                                    boss_damage: 10,
+                                                    lead_assignee: '',
+                                                    associate_ids: [],
+                                                    description: '',
+                                                    priority: 'MEDIUM',
+                                                    label: 'FEATURE',
+                                                    deadline: ''
+                                                }]
+                                            });
+                                        }}>+ Add Quest</button>
+                                    </div>
+
+                                    <div style={{ marginTop: '1rem', textAlign: 'center' }}>
+                                        <span className="nes-text is-error" style={{ fontSize: '1.2rem' }}>
+                                            Total HP: {(newBoss.tasks || []).reduce((sum, t) => sum + (parseInt(t.boss_damage) || 0), 0)}
+                                        </span>
+                                    </div>
+
+                                    <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'space-between' }}>
+                                        <button type="button" className="nes-btn" onClick={() => setShowBossForm(false)}>Cancel</button>
+                                        <button type="submit" className="nes-btn is-error">召喚 (Summon/Schedule)</button>
+                                    </div>
+                                </form>
+                            </div >
+                        </div >
+                    )
+                }
+
+                {/* Modal for Edit Boss */}
+                {
+                    showEditBossForm && (
+                        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 100 }}>
+                            <div className="nes-container is-rounded is-white" style={{ backgroundColor: 'white', maxWidth: '600px', width: '90%', maxHeight: '90vh', overflowY: 'auto' }}>
+                                <h2>Edit Boss</h2>
+                                <form onSubmit={handleUpdateBoss}>
+                                    <div className="nes-field">
+                                        <label>Name</label>
+                                        <input
+                                            className="nes-input"
+                                            value={editBossData.name}
+                                            onChange={e => setEditBossData({ ...editBossData, name: e.target.value })}
+                                            required
+                                        />
+                                    </div>
+
+                                    <div className="nes-field">
+                                        <label>Image URL (Optional)</label>
+                                        <input
+                                            className="nes-input"
+                                            value={editBossData.image_url}
+                                            onChange={e => setEditBossData({ ...editBossData, image_url: e.target.value })}
+                                            placeholder="https://..."
+                                        />
+                                    </div>
+
+                                    <div className="nes-field">
+                                        <label>Start Date (Optional)</label>
+                                        <input
+                                            type="date"
+                                            className="nes-input"
+                                            value={editBossData.start_date}
+                                            onChange={e => setEditBossData({ ...editBossData, start_date: e.target.value })}
+                                        />
+                                    </div>
+
+                                    <div className="nes-field">
+                                        <label>Deadline (Optional)</label>
+                                        <input
+                                            type="date"
+                                            className="nes-input"
+                                            value={editBossData.deadline}
+                                            onChange={e => setEditBossData({ ...editBossData, deadline: e.target.value })}
+                                        />
+                                    </div>
+
+                                    <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'space-between' }}>
+                                        <button type="button" className="nes-btn" onClick={() => setShowEditBossForm(false)}>Cancel</button>
+                                        <button type="submit" className="nes-btn is-warning">Update Boss</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    )
+                }
+                {/* Victory Popup */}
+                {showVictoryPopup && boss && (
+                    <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 200 }}>
+                        <div className="nes-container is-rounded is-centered is-dark" style={{ backgroundColor: '#212529', color: '#fff', maxWidth: '600px', width: '90%', border: '4px solid #F7D51D' }}>
+                            <i className="nes-icon trophy is-large"></i>
+                            <h2 style={{ color: '#F7D51D', marginTop: '1rem' }}>VICTORY!</h2>
+                            <p style={{ fontSize: '1.2rem' }}>The Boss <strong>{boss.name}</strong> has been defeated!</p>
+
+                            <div style={{ margin: '2rem 0', textAlign: 'left' }}>
+                                <p style={{ borderBottom: '2px solid #fff', paddingBottom: '0.5rem' }}>Heroes of the Realm:</p>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                    {(() => {
+                                        // Get all DONE tasks for this boss
+                                        const completedTasks = tasks.filter(t => t.boss_id === boss.id && t.status === 'DONE');
+                                        const contributorIds = new Set();
+
+                                        completedTasks.forEach(t => {
+                                            if (t.Assignees) {
+                                                t.Assignees.forEach(u => contributorIds.add(u.id));
+                                            }
+                                            // Also add lead assignee if not in Assignees list for some reason (though robust data should have it)
+                                            if (t.assigned_to) contributorIds.add(t.assigned_to);
+                                        });
+
+                                        if (contributorIds.size === 0) return <p>No specific heroes recorded.</p>;
+
+                                        return Array.from(contributorIds).map(id => {
+                                            const u = users.find(user => user.id === id);
+                                            if (!u) return null;
+                                            return (
+                                                <span key={u.id} className="nes-badge">
+                                                    <span className="is-warning">{u.username}</span>
+                                                </span>
+                                            );
+                                        });
+                                    })()}
+                                </div>
+                            </div>
+
+                            <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', marginTop: '2rem' }}>
+                                <button className="nes-btn" onClick={() => {
+                                    setShowVictoryPopup(false);
+                                    setVictoryDismissed(true);
+                                }}>Close</button>
+                                {isAdmin && (
+                                    <button className="nes-btn is-error" onClick={() => {
+                                        handleDeleteBoss();
+                                        // No need to close explicitly as deleting boss triggers null boss state
+                                    }}>Delete Boss</button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
     );
 };
 

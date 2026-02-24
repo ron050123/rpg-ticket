@@ -313,48 +313,48 @@ const TaskCard = ({ task, onMove, users, onNotify }) => {
 
 
     return (
-        <div className="nes-container is-rounded" style={{ marginBottom: '1rem', padding: '1rem', position: 'relative' }}>
+        <div className="nes-container is-rounded" style={{ marginBottom: '0.75rem', padding: '0.75rem', position: 'relative', backgroundColor: 'rgba(15, 15, 50, 0.9)', borderColor: '#5a5a9a', color: '#e0e0ff', fontSize: '0.75rem' }}>
             {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
                     <span
-                        style={{ fontWeight: 'bold', cursor: 'pointer', textDecoration: 'underline', color: '#209cee' }}
+                        style={{ fontWeight: 'bold', cursor: 'pointer', textDecoration: 'underline', color: '#209cee', fontSize: '0.85rem' }}
                         onClick={() => setShowDetailsModal(true)}
                         title="Click for Details"
                     >
                         {task.title}
                     </span>
                     {task.is_public && <span className="nes-text is-success" style={{ marginLeft: '0.5rem', fontSize: '0.7rem' }}>(Public)</span>}
+                    <div style={{ marginTop: '0.25rem' }}>
+                        <span className={`nes-badge ${badgeClass}`} style={{ transform: 'scale(0.75)', transformOrigin: 'left center', display: 'inline-block' }}>
+                            <span className="is-dark" style={{ fontSize: '0.6rem', padding: '0.1rem 0.3rem' }}>{task.boss_damage} DMG</span>
+                        </span>
+                    </div>
                 </div>
-                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                    {isAdmin && (
-                        <>
-                            <button
-                                className="nes-btn is-warning is-small"
-                                onClick={handleTogglePublic}
-                                style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem' }}
-                                title={task.is_public ? 'Make Private' : 'Make Public'}
-                            >
-                                {task.is_public ? '🔓' : '🔒'}
+                {isAdmin && (
+                    <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center', flexShrink: 0 }}>
+                        <button
+                            className="nes-btn is-warning is-small"
+                            onClick={handleTogglePublic}
+                            style={{ padding: '0.15rem 0.4rem', fontSize: '0.65rem' }}
+                            title={task.is_public ? 'Make Private' : 'Make Public'}
+                        >
+                            {task.is_public ? '🔓' : '🔒'}
+                        </button>
+                        {task.status !== 'DONE' && (
+                            <button className="nes-btn is-primary is-small" onClick={() => setIsEditMode(true)} style={{ padding: '0.15rem 0.4rem', fontSize: '0.65rem' }}>
+                                Edit
                             </button>
-                            {task.status !== 'DONE' && (
-                                <button className="nes-btn is-primary is-small" onClick={() => setIsEditMode(true)} style={{ padding: '0.2rem 0.5rem' }}>
-                                    Edit
-                                </button>
-                            )}
-                            <button
-                                className="nes-btn is-error is-small"
-                                onClick={handleDelete}
-                                style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem' }}
-                            >
-                                ✕
-                            </button>
-                        </>
-                    )}
-                    <span className={`nes-badge ${badgeClass}`}>
-                        <span className="is-dark">{task.boss_damage} DMG</span>
-                    </span>
-                </div>
+                        )}
+                        <button
+                            className="nes-btn is-error is-small"
+                            onClick={handleDelete}
+                            style={{ padding: '0.15rem 0.4rem', fontSize: '0.65rem' }}
+                        >
+                            ✕
+                        </button>
+                    </div>
+                )}
             </div>
 
 
@@ -367,7 +367,7 @@ const TaskCard = ({ task, onMove, users, onNotify }) => {
             )}
 
             {/* Badges / Info */}
-            <div style={{ fontSize: '0.8rem', marginTop: '0.5rem', marginBottom: '0.5rem' }}>
+            <div style={{ fontSize: '0.8rem', marginTop: '0.75rem', marginBottom: '0.75rem' }}>
                 <span className="nes-text is-primary">#{task.label}</span>
                 {task.priority === 'HIGH' && <span className="nes-text is-error" style={{ marginLeft: '0.5rem' }}>High Priority</span>}
                 {task.priority === 'MEDIUM' && <span className="nes-text is-warning" style={{ marginLeft: '0.5rem' }}>Medium Priority</span>}
@@ -381,7 +381,7 @@ const TaskCard = ({ task, onMove, users, onNotify }) => {
                 </div>
             )}
 
-            <div style={{ fontSize: '0.8rem', fontStyle: 'italic', marginBottom: '1rem' }}>
+            <div style={{ fontSize: '0.8rem', fontStyle: 'italic', marginTop: '0.5rem', marginBottom: '0.5rem' }}>
                 {task.Assignees && task.Assignees.length > 0 ? (
                     <>
                         <div>
@@ -466,7 +466,7 @@ const TaskCard = ({ task, onMove, users, onNotify }) => {
 
 
             {/* Main Actions */}
-            <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap', borderTop: '2px solid black', paddingTop: '1rem' }}>
+            <div style={{ marginTop: '0.75rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap', borderTop: '2px solid #4a4a8a', paddingTop: '0.5rem' }}>
                 {renderMainAction()}
             </div>
 

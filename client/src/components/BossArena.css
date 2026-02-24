@@ -1,0 +1,599 @@
+/* ===== BOSS ARENA ===== */
+.boss-arena {
+    width: 100%;
+    height: 100%;
+    min-height: 100%;
+    position: relative;
+    border-radius: 0;
+    overflow: hidden;
+}
+
+.arena-bg {
+    width: 100%;
+    height: 100%;
+    min-height: 100%;
+    background: linear-gradient(180deg, #0a0a2e 0%, #1a1a4e 40%, #2a1a3e 70%, #1a0a1e 100%);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    image-rendering: pixelated;
+}
+
+/* ===== STARS ===== */
+.arena-stars {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 60%;
+    pointer-events: none;
+}
+
+.star {
+    position: absolute;
+    width: 3px;
+    height: 3px;
+    background: #fff;
+    animation: twinkle 2s ease-in-out infinite;
+}
+
+.star:nth-child(odd) {
+    width: 2px;
+    height: 2px;
+    opacity: 0.6;
+}
+
+@keyframes twinkle {
+
+    0%,
+    100% {
+        opacity: 0.3;
+    }
+
+    50% {
+        opacity: 1;
+    }
+}
+
+/* ===== GROUND ===== */
+.arena-ground {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 80px;
+    background: linear-gradient(to bottom, transparent, rgba(10, 5, 20, 0.6));
+    pointer-events: none;
+}
+
+.arena-ground::before {
+    display: none;
+}
+
+/* ===== BOSS NAME ===== */
+.arena-boss-name {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+}
+
+.arena-boss-name span {
+    font-family: "Press Start 2P", "VT323", cursive;
+    font-size: 1.2rem;
+    color: #ffd700;
+    text-shadow: 2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+}
+
+/* ===== HP BAR ===== */
+.arena-hp-bar-container {
+    position: absolute;
+    top: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    z-index: 10;
+    width: 70%;
+    max-width: 400px;
+}
+
+.arena-hp-label {
+    font-family: "Press Start 2P", "VT323", cursive;
+    font-size: 0.7rem;
+    color: #ff4444;
+    text-shadow: 1px 1px 0 #000;
+}
+
+.arena-hp-bar {
+    flex: 1;
+    height: 16px;
+    background: #333;
+    border: 3px solid #555;
+    position: relative;
+    image-rendering: pixelated;
+}
+
+.arena-hp-bar::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 50%;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.arena-hp-fill {
+    height: 100%;
+    background: linear-gradient(180deg, #44ff44 0%, #22aa22 50%, #44ff44 100%);
+    transition: width 0.5s ease;
+    position: relative;
+}
+
+.arena-hp-fill.hp-low {
+    background: linear-gradient(180deg, #ff4444 0%, #aa2222 50%, #ff4444 100%);
+    animation: hp-flash 0.5s ease-in-out infinite;
+}
+
+@keyframes hp-flash {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.6;
+    }
+}
+
+.arena-hp-text {
+    font-family: "Press Start 2P", "VT323", cursive;
+    font-size: 0.6rem;
+    color: #fff;
+    text-shadow: 1px 1px 0 #000;
+    white-space: nowrap;
+}
+
+/* ===== BOSS SPRITE ===== */
+.boss-sprite-container {
+    position: relative;
+    z-index: 5;
+    animation: boss-idle 3s ease-in-out infinite;
+    margin-bottom: 60px;
+}
+
+.boss-sprite-container.defeated {
+    animation: boss-defeated 2s ease-in-out infinite;
+    opacity: 0.5;
+    filter: grayscale(0.8);
+}
+
+@keyframes boss-idle {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-12px);
+    }
+}
+
+@keyframes boss-defeated {
+
+    0%,
+    100% {
+        transform: translateY(10px) rotate(5deg);
+        opacity: 0.4;
+    }
+
+    50% {
+        transform: translateY(15px) rotate(-5deg);
+        opacity: 0.6;
+    }
+}
+
+.boss-sprite--custom {
+    width: 200px;
+    height: 200px;
+    object-fit: contain;
+    image-rendering: pixelated;
+    filter: drop-shadow(0 0 20px rgba(255, 100, 0, 0.5));
+}
+
+/* ===== CSS PIXEL DRAGON ===== */
+.pixel-dragon {
+    width: 180px;
+    height: 160px;
+    position: relative;
+    filter: drop-shadow(0 0 25px rgba(255, 50, 0, 0.4));
+}
+
+.dragon-body {
+    position: absolute;
+    width: 80px;
+    height: 60px;
+    background: #8b2252;
+    left: 50px;
+    top: 50px;
+    border-radius: 4px;
+    box-shadow:
+        /* head */
+        -30px -20px 0 0 #9b3262,
+        -30px -10px 0 0 #9b3262,
+        -40px -10px 0 0 #8b2252,
+        -20px -20px 0 0 #9b3262,
+        /* lower body */
+        10px 10px 0 0 #7b1242,
+        20px 10px 0 0 #7b1242,
+        /* legs */
+        10px 20px 0 0 #6b0232,
+        20px 20px 0 0 #6b0232,
+        60px 20px 0 0 #6b0232,
+        70px 20px 0 0 #6b0232,
+        /* claws */
+        5px 30px 0 0 #ffcc00,
+        25px 30px 0 0 #ffcc00,
+        55px 30px 0 0 #ffcc00,
+        75px 30px 0 0 #ffcc00;
+    image-rendering: pixelated;
+}
+
+.dragon-wing--left {
+    position: absolute;
+    width: 0;
+    height: 0;
+    border-left: 35px solid transparent;
+    border-right: 35px solid transparent;
+    border-bottom: 50px solid #6b0232;
+    left: 30px;
+    top: 0;
+    animation: wing-flap 1.5s ease-in-out infinite;
+    transform-origin: bottom center;
+}
+
+.dragon-wing--right {
+    position: absolute;
+    width: 0;
+    height: 0;
+    border-left: 35px solid transparent;
+    border-right: 35px solid transparent;
+    border-bottom: 50px solid #6b0232;
+    left: 90px;
+    top: 0;
+    animation: wing-flap 1.5s ease-in-out infinite reverse;
+    transform-origin: bottom center;
+}
+
+@keyframes wing-flap {
+
+    0%,
+    100% {
+        transform: scaleY(1) rotate(-5deg);
+    }
+
+    50% {
+        transform: scaleY(0.7) rotate(5deg);
+    }
+}
+
+.dragon-eye--left {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background: #ff0000;
+    border-radius: 50%;
+    left: 28px;
+    top: 35px;
+    box-shadow: 0 0 8px #ff0000, 0 0 16px rgba(255, 0, 0, 0.5);
+    animation: eye-glow 2s ease-in-out infinite;
+}
+
+.dragon-eye--right {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background: #ff0000;
+    border-radius: 50%;
+    left: 44px;
+    top: 35px;
+    box-shadow: 0 0 8px #ff0000, 0 0 16px rgba(255, 0, 0, 0.5);
+    animation: eye-glow 2s ease-in-out infinite 0.1s;
+}
+
+@keyframes eye-glow {
+
+    0%,
+    100% {
+        box-shadow: 0 0 8px #ff0000, 0 0 16px rgba(255, 0, 0, 0.5);
+    }
+
+    50% {
+        box-shadow: 0 0 15px #ff4444, 0 0 30px rgba(255, 0, 0, 0.8);
+    }
+}
+
+.dragon-horn--left {
+    position: absolute;
+    width: 6px;
+    height: 18px;
+    background: #ffcc00;
+    left: 22px;
+    top: 18px;
+    transform: rotate(-15deg);
+    border-radius: 2px 2px 0 0;
+}
+
+.dragon-horn--right {
+    position: absolute;
+    width: 6px;
+    height: 18px;
+    background: #ffcc00;
+    left: 50px;
+    top: 18px;
+    transform: rotate(15deg);
+    border-radius: 2px 2px 0 0;
+}
+
+.dragon-mouth {
+    position: absolute;
+    width: 20px;
+    height: 6px;
+    background: #ff4444;
+    left: 26px;
+    top: 50px;
+    border-radius: 0 0 4px 4px;
+}
+
+.dragon-tail {
+    position: absolute;
+    width: 50px;
+    height: 8px;
+    background: #7b1242;
+    right: -10px;
+    top: 80px;
+    border-radius: 0 4px 4px 0;
+    animation: tail-wag 2s ease-in-out infinite;
+    transform-origin: left center;
+}
+
+@keyframes tail-wag {
+
+    0%,
+    100% {
+        transform: rotate(-5deg);
+    }
+
+    50% {
+        transform: rotate(10deg);
+    }
+}
+
+/* ===== FIRE BREATH ===== */
+.dragon-fire {
+    position: absolute;
+    left: 10px;
+    top: 48px;
+}
+
+.fire-particle {
+    position: absolute;
+    border-radius: 50%;
+    animation: fire-breathe 1.5s ease-out infinite;
+}
+
+.fire-1 {
+    width: 12px;
+    height: 12px;
+    background: #ff6600;
+    left: -15px;
+    top: -5px;
+    animation-delay: 0s;
+}
+
+.fire-2 {
+    width: 8px;
+    height: 8px;
+    background: #ffcc00;
+    left: -25px;
+    top: -2px;
+    animation-delay: 0.3s;
+}
+
+.fire-3 {
+    width: 6px;
+    height: 6px;
+    background: #ff4400;
+    left: -35px;
+    top: 2px;
+    animation-delay: 0.6s;
+}
+
+@keyframes fire-breathe {
+    0% {
+        transform: translateX(0) scale(1);
+        opacity: 1;
+    }
+
+    100% {
+        transform: translateX(-30px) scale(0.3);
+        opacity: 0;
+    }
+}
+
+/* ===== DEFEATED OVERLAY ===== */
+.defeated-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 20;
+}
+
+.defeated-text {
+    font-family: "Press Start 2P", "VT323", cursive;
+    font-size: 1.5rem;
+    color: #ff4444;
+    text-shadow: 3px 3px 0 #000, 0 0 20px rgba(255, 0, 0, 0.5);
+    animation: defeated-pulse 1s ease-in-out infinite;
+}
+
+@keyframes defeated-pulse {
+
+    0%,
+    100% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.1);
+    }
+}
+
+.defeated-sparkles {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+}
+
+.sparkle {
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    background: #ffd700;
+    animation: sparkle-float 2s ease-out infinite;
+}
+
+.sparkle::after {
+    content: '';
+    position: absolute;
+    width: 2px;
+    height: 6px;
+    background: #ffd700;
+    left: 2px;
+    top: -2px;
+}
+
+.sparkle::before {
+    content: '';
+    position: absolute;
+    width: 6px;
+    height: 2px;
+    background: #ffd700;
+    left: 0;
+    top: 0;
+}
+
+@keyframes sparkle-float {
+    0% {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+    }
+
+    100% {
+        transform: translateY(-40px) scale(0);
+        opacity: 0;
+    }
+}
+
+/* ===== RAGE MODE ===== */
+.boss-arena--rage .arena-bg {
+    animation: rage-bg 0.5s ease-in-out infinite;
+}
+
+@keyframes rage-bg {
+
+    0%,
+    100% {
+        background: linear-gradient(180deg, #1a0a0e 0%, #2a0a1e 40%, #3a0a1e 70%, #1a0a0e 100%);
+    }
+
+    50% {
+        background: linear-gradient(180deg, #2a1a1e 0%, #3a1a2e 40%, #4a1a2e 70%, #2a1a1e 100%);
+    }
+}
+
+.rage-aura {
+    position: absolute;
+    bottom: 80px;
+    left: 0;
+    width: 100%;
+    height: 50%;
+    pointer-events: none;
+    z-index: 4;
+}
+
+.rage-particle {
+    position: absolute;
+    bottom: 0;
+    width: 4px;
+    height: 20px;
+    background: linear-gradient(to top, #ff4400, transparent);
+    animation: rage-rise 1s ease-out infinite;
+}
+
+@keyframes rage-rise {
+    0% {
+        transform: translateY(0) scaleY(1);
+        opacity: 0.8;
+    }
+
+    100% {
+        transform: translateY(-100px) scaleY(2);
+        opacity: 0;
+    }
+}
+
+/* ===== EMPTY STATE ===== */
+.boss-arena--empty .arena-bg {
+    background: linear-gradient(180deg, #0a0a1e 0%, #0a0a2e 50%, #1a1a3e 100%);
+}
+
+.arena-message {
+    text-align: center;
+    z-index: 10;
+}
+
+.arena-message-text {
+    display: block;
+    font-family: "Press Start 2P", "VT323", cursive;
+    font-size: 1rem;
+    color: #556;
+    text-shadow: 1px 1px 0 #000;
+    margin-bottom: 1rem;
+}
+
+.arena-message-sub {
+    display: block;
+    font-family: "Press Start 2P", "VT323", cursive;
+    font-size: 0.6rem;
+    color: #445;
+    text-shadow: 1px 1px 0 #000;
+    animation: subtle-pulse 3s ease-in-out infinite;
+}
+
+@keyframes subtle-pulse {
+
+    0%,
+    100% {
+        opacity: 0.4;
+    }
+
+    50% {
+        opacity: 0.8;
+    }
+}

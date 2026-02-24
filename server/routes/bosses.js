@@ -138,21 +138,25 @@ router.delete('/:id', requireAdmin, async (req, res) => {
             return res.status(404).json({ message: 'Boss not found' });
         }
 
-        // Manually decoupling tasks to avoid SQLITE_CONSTRAINT error
-        await Task.update({ boss_id: null }, { where: { boss_id: boss.id } });
+        // Delete all affiliated quests first
+        const affiliatedTasks = await Task.findAll({ where: { boss_id: boss.id } });
+        for (const task of affiliatedTasks) {
+            req.io.emit('task_deleted', task.id);
+        }
+        await Task.destroy({ where: { boss_id: boss.id } });
 
-        // Check for 'Tasks_backup' or similar tables created by Sequelize sync failures causing FK constraints
+        // Clean up backup table if it exists
         try {
             const { sequelize } = require('../models');
-            await sequelize.query(`UPDATE Tasks_backup SET boss_id = NULL WHERE boss_id = ${boss.id}`);
+            await sequelize.query(`DELETE FROM Tasks_backup WHERE boss_id = ${boss.id}`);
         } catch (e) {
             // Ignore if table doesn't exist
         }
 
         await boss.destroy();
 
-        req.io.emit('boss_deleted', { id: boss.id }); // Send object with ID for consistency
-        res.json({ message: 'Boss deleted successfully' });
+        req.io.emit('boss_deleted', { id: boss.id });
+        res.json({ message: 'Boss and affiliated quests deleted successfully' });
     } catch (error) {
         console.error('Delete boss error:', error);
         res.status(500).json({ error: error.message });

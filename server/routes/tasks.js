@@ -293,6 +293,7 @@ router.put('/:id', verifyToken, async (req, res) => {
 
 // Delete a task (Admin only)
 router.delete('/:id', requireAdmin, async (req, res) => {
+    const sequelize = require('../config/database');
     try {
         const taskId = req.params.id;
         const task = await Task.findByPk(taskId);
@@ -313,26 +314,33 @@ router.delete('/:id', requireAdmin, async (req, res) => {
             }
         }
 
-        // Delete subtasks first if this is a parent task
-        if (!task.parent_task_id) {
-            // Find subtasks to clear their associations too
-            const subtasks = await Task.findAll({ where: { parent_task_id: taskId } });
-            for (const subtask of subtasks) {
-                // Clear comments for subtask
-                await Comment.destroy({ where: { taskId: subtask.id } });
-                await subtask.setAssignees([]); // Clear subtask assignees
-                await subtask.destroy();
+        // Use a transaction and disable FK checks to avoid SQLITE_CONSTRAINT errors
+        await sequelize.transaction(async (t) => {
+            // Temporarily disable foreign key checks for this connection
+            await sequelize.query('PRAGMA foreign_keys = OFF', { transaction: t });
+
+            // Delete subtasks first if this is a parent task
+            if (!task.parent_task_id) {
+                const subtasks = await Task.findAll({ where: { parent_task_id: taskId }, transaction: t });
+                for (const subtask of subtasks) {
+                    await Comment.destroy({ where: { taskId: subtask.id }, transaction: t });
+                    await subtask.setAssignees([], { transaction: t });
+                    await subtask.destroy({ transaction: t });
+                }
             }
-        }
 
-        // Clear comments for main task
-        await Comment.destroy({ where: { taskId: task.id } });
+            // Clear comments for main task
+            await Comment.destroy({ where: { taskId: task.id }, transaction: t });
 
-        // Clear assignees for the main task
-        await task.setAssignees([]);
+            // Clear assignees (many-to-many join table)
+            await task.setAssignees([], { transaction: t });
 
-        // Delete the task
-        await task.destroy();
+            // Delete the task
+            await task.destroy({ transaction: t });
+
+            // Re-enable foreign key checks
+            await sequelize.query('PRAGMA foreign_keys = ON', { transaction: t });
+        });
 
         // Emit deletion event
         req.io.emit('task_deleted', { taskId });

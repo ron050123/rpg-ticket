@@ -1,16 +1,28 @@
 #root {
-  max-width: 1390px;
-  margin: 0 auto;
+  max-width: 1390px !important;
+  margin: 0 auto !important;
   padding: 0 15px;
   text-align: center;
   width: 100%;
   box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 .container {
   max-width: 1390px !important;
   margin: 0 auto;
   width: 100%;
+}
+
+/* Ensure all elements within the app stay within max-width */
+#root>div {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+#root .nes-container {
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .logo {
