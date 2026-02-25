@@ -47,10 +47,16 @@ async function startServer() {
             console.log('Database synced successfully (alter: true).');
         } catch (syncErr) {
             console.warn('Sync with alter:true failed, attempting regular sync. Error:', syncErr.message);
-            // Verify if it's the specific backup error which usually means schema is actually fine or data migration failed
-            // We'll try basic sync which doesn't alter schema but ensures tables exist
             await sequelize.sync();
             console.log('Database synced successfully (basic sync).');
+        }
+
+        // Manual migration: ensure Comments.type column exists
+        try {
+            await sequelize.query("ALTER TABLE Comments ADD COLUMN type TEXT DEFAULT 'COMMENT'");
+            console.log('Added missing type column to Comments.');
+        } catch (e) {
+            // Column already exists, ignore
         }
         if (process.env.NODE_ENV !== 'test') {
             try {

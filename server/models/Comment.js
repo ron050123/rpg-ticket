@@ -6,6 +6,10 @@ const Comment = sequelize.define('Comment', {
         type: DataTypes.TEXT,
         allowNull: false
     },
+    type: {
+        type: DataTypes.ENUM('COMMENT', 'PROOF_OF_WORK', 'APPROVAL', 'DENIAL'),
+        defaultValue: 'COMMENT'
+    },
     userId: {
         type: DataTypes.INTEGER,
         allowNull: false

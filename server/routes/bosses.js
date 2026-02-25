@@ -1,5 +1,5 @@
 const express = require('express');
-const { Boss, Task, User } = require('../models');
+const { Boss, Task, User, Comment, sequelize } = require('../models');
 const { requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
@@ -138,21 +138,27 @@ router.delete('/:id', requireAdmin, async (req, res) => {
             return res.status(404).json({ message: 'Boss not found' });
         }
 
-        // Delete all affiliated quests first
+        // Find all affiliated tasks
         const affiliatedTasks = await Task.findAll({ where: { boss_id: boss.id } });
+
         for (const task of affiliatedTasks) {
-            req.io.emit('task_deleted', task.id);
-        }
-        await Task.destroy({ where: { boss_id: boss.id } });
+            // Delete subtasks first
+            const subtasks = await Task.findAll({ where: { parent_task_id: task.id } });
+            for (const subtask of subtasks) {
+                await Comment.destroy({ where: { taskId: subtask.id } });
+                await subtask.setAssignees([]);
+                await subtask.destroy();
+            }
 
-        // Clean up backup table if it exists
-        try {
-            const { sequelize } = require('../models');
-            await sequelize.query(`DELETE FROM Tasks_backup WHERE boss_id = ${boss.id}`);
-        } catch (e) {
-            // Ignore if table doesn't exist
+            // Delete comments, clear assignees, then destroy the task
+            await Comment.destroy({ where: { taskId: task.id } });
+            await task.setAssignees([]);
+            await task.destroy();
+
+            req.io.emit('task_deleted', { taskId: task.id });
         }
 
+        // Delete the boss
         await boss.destroy();
 
         req.io.emit('boss_deleted', { id: boss.id });

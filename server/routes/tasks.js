@@ -205,6 +205,35 @@ router.put('/:id', verifyToken, async (req, res) => {
 
         await task.save();
 
+        // Auto-create PROOF_OF_WORK comment when moving to PENDING_REVIEW
+        if (status === 'PENDING_REVIEW' && completion_comment) {
+            await Comment.create({
+                content: completion_comment,
+                type: 'PROOF_OF_WORK',
+                taskId: task.id,
+                userId: req.user.id
+            });
+        }
+
+        // Handle denial: admin moves PENDING_REVIEW → IN_PROGRESS
+        if (oldStatus === 'PENDING_REVIEW' && status === 'IN_PROGRESS' && isAdmin) {
+            if (admin_reply) {
+                await Comment.create({
+                    content: admin_reply,
+                    type: 'DENIAL',
+                    taskId: task.id,
+                    userId: req.user.id
+                });
+            }
+            // WebSocket notification to lead assignee
+            req.io.emit('quest_denied', {
+                taskId: task.id,
+                taskTitle: task.title,
+                reason: admin_reply || 'No reason provided',
+                leadAssigneeId: task.assigned_to
+            });
+        }
+
         if (isAdmin && assignee_ids) {
             // Check for new assignees to trigger "Friend Joined" notification
             const oldAssigneeIds = task.Assignees.map(u => u.id);
@@ -269,6 +298,40 @@ router.put('/:id', verifyToken, async (req, res) => {
                     await user.save();
                 }
             }
+
+            // Auto-create APPROVAL comment
+            if (admin_reply) {
+                await Comment.create({
+                    content: admin_reply,
+                    type: 'APPROVAL',
+                    taskId: task.id,
+                    userId: req.user.id
+                });
+            }
+        }
+
+        // Reverse Damage & XP Logic (Reopening from DONE)
+        if (oldStatus === 'DONE' && status === 'IN_PROGRESS') {
+            // 1. Restore Boss HP (ONLY Main Quests)
+            if (task.boss_id && task.boss_damage > 0 && !task.parent_task_id) {
+                const boss = await Boss.findByPk(task.boss_id);
+                if (boss) {
+                    const currentAssignees = await task.getAssignees();
+                    let damage = task.boss_damage;
+                    let multiplier = 1.0;
+
+                    for (const user of currentAssignees) {
+                        if (user.class === 'Warrior' && task.priority === 'HIGH') multiplier = Math.max(multiplier, 1.5);
+                        if (user.class === 'Rogue' && task.label === 'BUG') multiplier = Math.max(multiplier, 2.0);
+                    }
+
+                    const finalDamage = Math.floor(damage * multiplier);
+                    boss.current_hp = Math.min(boss.total_hp, boss.current_hp + finalDamage);
+                    await boss.save();
+
+                    req.io.emit('boss_updated', boss);
+                }
+            }
         }
 
         // Emit Update
@@ -314,33 +377,20 @@ router.delete('/:id', requireAdmin, async (req, res) => {
             }
         }
 
-        // Use a transaction and disable FK checks to avoid SQLITE_CONSTRAINT errors
-        await sequelize.transaction(async (t) => {
-            // Temporarily disable foreign key checks for this connection
-            await sequelize.query('PRAGMA foreign_keys = OFF', { transaction: t });
-
-            // Delete subtasks first if this is a parent task
-            if (!task.parent_task_id) {
-                const subtasks = await Task.findAll({ where: { parent_task_id: taskId }, transaction: t });
-                for (const subtask of subtasks) {
-                    await Comment.destroy({ where: { taskId: subtask.id }, transaction: t });
-                    await subtask.setAssignees([], { transaction: t });
-                    await subtask.destroy({ transaction: t });
-                }
+        // Delete subtasks first if this is a parent task
+        if (!task.parent_task_id) {
+            const subtasks = await Task.findAll({ where: { parent_task_id: taskId } });
+            for (const subtask of subtasks) {
+                await Comment.destroy({ where: { taskId: subtask.id } });
+                await subtask.setAssignees([]);
+                await subtask.destroy();
             }
+        }
 
-            // Clear comments for main task
-            await Comment.destroy({ where: { taskId: task.id }, transaction: t });
-
-            // Clear assignees (many-to-many join table)
-            await task.setAssignees([], { transaction: t });
-
-            // Delete the task
-            await task.destroy({ transaction: t });
-
-            // Re-enable foreign key checks
-            await sequelize.query('PRAGMA foreign_keys = ON', { transaction: t });
-        });
+        // Clear comments, assignees, then destroy the task
+        await Comment.destroy({ where: { taskId: task.id } });
+        await task.setAssignees([]);
+        await task.destroy();
 
         // Emit deletion event
         req.io.emit('task_deleted', { taskId });

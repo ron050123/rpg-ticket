@@ -92,6 +92,20 @@ const TaskCard = ({ task, onMove, users, onNotify }) => {
         }
     };
 
+    const handleAdminDeny = async () => {
+        if (!isAdmin) return;
+        if (!adminReply.trim()) {
+            alert('Please provide a reason for denial.');
+            return;
+        }
+        try {
+            await onMove(task.id, 'IN_PROGRESS', adminReply);
+            setAdminReply('');
+        } catch (err) {
+            alert('Failed to deny: ' + err.message);
+        }
+    };
+
     const handleComplete = async () => {
         try {
             await onMove(task.id, 'PENDING_REVIEW', completionComment);
@@ -252,14 +266,19 @@ const TaskCard = ({ task, onMove, users, onNotify }) => {
                         <div>
                             <textarea
                                 className="nes-textarea"
-                                placeholder="Add your feedback (optional)..."
+                                placeholder="Add your feedback (required for deny)..."
                                 value={adminReply}
                                 onChange={e => setAdminReply(e.target.value)}
                                 style={{ height: '3rem', minHeight: '3rem', marginBottom: '0.5rem', fontSize: '0.8rem', ...darkInputStyle }}
                             />
-                            <button className="nes-btn is-success is-small" onClick={handleAdminComplete}>
-                                Complete Quest (Authorize)
-                            </button>
+                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                <button className="nes-btn is-success is-small" onClick={handleAdminComplete}>
+                                    ✓ Approve
+                                </button>
+                                <button className="nes-btn is-error is-small" onClick={handleAdminDeny}>
+                                    ✕ Deny
+                                </button>
+                            </div>
                         </div>
                     ) : (
                         <span style={{ fontSize: '0.7rem' }}>Waiting for GM...</span>
@@ -278,28 +297,57 @@ const TaskCard = ({ task, onMove, users, onNotify }) => {
                 );
             }
             if (task.status === 'IN_PROGRESS') {
-                if (showCompleteForm) {
-                    return (
-                        <div className="nes-container is-rounded is-dark" style={{ padding: '0.5rem' }}>
-                            <p style={{ marginBottom: '0.5rem' }}>Proof of work:</p>
-                            <textarea
-                                className="nes-textarea"
-                                value={completionComment}
-                                onChange={e => setCompletionComment(e.target.value)}
-                                style={{ height: '3rem', minHeight: '3rem', marginBottom: '0.5rem', ...darkInputStyle }}
-                            />
-                            <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                <button className="nes-btn is-success is-small" onClick={handleComplete}>Submit</button>
-                                <button className="nes-btn is-small" onClick={() => setShowCompleteForm(false)}>Cancel</button>
+                if (isAdmin) {
+                    // Admin: feedback form, goes straight to DONE
+                    if (showCompleteForm) {
+                        return (
+                            <div className="nes-container is-rounded is-dark" style={{ padding: '0.5rem' }}>
+                                <p style={{ marginBottom: '0.5rem' }}>GM Feedback (optional):</p>
+                                <textarea
+                                    className="nes-textarea"
+                                    value={adminReply}
+                                    onChange={e => setAdminReply(e.target.value)}
+                                    placeholder="Leave feedback for the team..."
+                                    style={{ height: '3rem', minHeight: '3rem', marginBottom: '0.5rem', ...darkInputStyle }}
+                                />
+                                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                    <button className="nes-btn is-success is-small" onClick={handleAdminComplete}>Complete Quest</button>
+                                    <button className="nes-btn is-small" onClick={() => { setShowCompleteForm(false); setAdminReply(''); }}>Cancel</button>
+                                </div>
                             </div>
-                        </div>
-                    );
+                        );
+                    } else {
+                        return (
+                            <button className="nes-btn is-success is-small" onClick={() => setShowCompleteForm(true)}>
+                                Mark as Done
+                            </button>
+                        );
+                    }
                 } else {
-                    return (
-                        <button className="nes-btn is-success is-small" onClick={() => setShowCompleteForm(true)}>
-                            Mark as Done
-                        </button>
-                    );
+                    // Non-admin: proof of work form, goes to PENDING_REVIEW
+                    if (showCompleteForm) {
+                        return (
+                            <div className="nes-container is-rounded is-dark" style={{ padding: '0.5rem' }}>
+                                <p style={{ marginBottom: '0.5rem' }}>Proof of work:</p>
+                                <textarea
+                                    className="nes-textarea"
+                                    value={completionComment}
+                                    onChange={e => setCompletionComment(e.target.value)}
+                                    style={{ height: '3rem', minHeight: '3rem', marginBottom: '0.5rem', ...darkInputStyle }}
+                                />
+                                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                    <button className="nes-btn is-success is-small" onClick={handleComplete}>Submit</button>
+                                    <button className="nes-btn is-small" onClick={() => setShowCompleteForm(false)}>Cancel</button>
+                                </div>
+                            </div>
+                        );
+                    } else {
+                        return (
+                            <button className="nes-btn is-success is-small" onClick={() => setShowCompleteForm(true)}>
+                                Mark as Done
+                            </button>
+                        );
+                    }
                 }
             }
         }
@@ -566,31 +614,61 @@ const TaskCard = ({ task, onMove, users, onNotify }) => {
                                 <div>
                                     <h3 style={{ fontSize: '1.2rem', marginBottom: '0.5rem' }}>Activity</h3>
                                     <div className="nes-container is-rounded" style={{ backgroundColor: '#f0f0f0', color: '#000' }}>
-                                        {/* Completion Proof */}
-                                        {task.completion_comment && (
-                                            <div style={{ marginBottom: '1rem', display: 'flex', gap: '1rem' }}>
-                                                <i className="nes-icon coin is-small"></i>
-                                                <div>
-                                                    <strong>Proof of Work</strong>
-                                                    <p style={{ marginTop: '0.5rem', backgroundColor: '#fff', padding: '0.5rem', borderRadius: '4px' }}>"{task.completion_comment}"</p>
-                                                </div>
+                                        {/* Activity Timeline - Typed Comments (Proof of Work, Approvals, Denials) */}
+                                        {comments.filter(c => c.type && c.type !== 'COMMENT').length > 0 ? (
+                                            <div style={{ marginBottom: '1rem' }}>
+                                                {comments.filter(c => c.type && c.type !== 'COMMENT').map(comment => {
+                                                    let borderColor, bgColor, icon, label;
+                                                    if (comment.type === 'PROOF_OF_WORK') {
+                                                        borderColor = '#2196f3'; bgColor = '#e3f2fd'; icon = '📋'; label = 'Proof of Work';
+                                                    } else if (comment.type === 'APPROVAL') {
+                                                        borderColor = '#4caf50'; bgColor = '#e8f5e9'; icon = '✅'; label = 'GM Approved';
+                                                    } else if (comment.type === 'DENIAL') {
+                                                        borderColor = '#f44336'; bgColor = '#ffebee'; icon = '❌'; label = 'GM Denied';
+                                                    } else {
+                                                        return null;
+                                                    }
+                                                    return (
+                                                        <div key={comment.id} style={{ marginBottom: '0.75rem', padding: '0.75rem', backgroundColor: bgColor, borderLeft: `4px solid ${borderColor}`, borderRadius: '4px' }}>
+                                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+                                                                <strong style={{ color: borderColor, fontSize: '0.9rem' }}>{icon} {label}</strong>
+                                                                <span style={{ fontSize: '0.7rem', color: '#666' }}>
+                                                                    {comment.User?.username || 'Unknown'} · {new Date(comment.createdAt).toLocaleString()}
+                                                                </span>
+                                                            </div>
+                                                            <span style={{ color: '#000', fontSize: '0.9rem' }}>"{comment.content}"</span>
+                                                        </div>
+                                                    );
+                                                })}
                                             </div>
-                                        )}
-                                        {/* GM Feedback */}
-                                        {task.admin_reply && (
-                                            <div style={{ marginBottom: '1rem', display: 'flex', gap: '1rem' }}>
-                                                <i className="nes-icon star is-small"></i>
-                                                <div>
-                                                    <strong>GM Feedback</strong>
-                                                    <p style={{ marginTop: '0.5rem', backgroundColor: '#fff', padding: '0.5rem', borderRadius: '4px' }}>"{task.admin_reply}"</p>
-                                                </div>
-                                            </div>
+                                        ) : (
+                                            <>
+                                                {/* Fallback: Show task-level proof/feedback if no typed comments exist */}
+                                                {task.completion_comment && (
+                                                    <div style={{ marginBottom: '1rem', display: 'flex', gap: '1rem' }}>
+                                                        <i className="nes-icon coin is-small"></i>
+                                                        <div>
+                                                            <strong>Proof of Work</strong>
+                                                            <p style={{ marginTop: '0.5rem', backgroundColor: '#fff', padding: '0.5rem', borderRadius: '4px' }}>"{task.completion_comment}"</p>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                {task.admin_reply && (
+                                                    <div style={{ marginBottom: '1rem', display: 'flex', gap: '1rem' }}>
+                                                        <i className="nes-icon star is-small"></i>
+                                                        <div>
+                                                            <strong>GM Feedback</strong>
+                                                            <p style={{ marginTop: '0.5rem', backgroundColor: '#fff', padding: '0.5rem', borderRadius: '4px' }}>"{task.admin_reply}"</p>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </>
                                         )}
 
-                                        {/* COMMENTS LIST */}
-                                        {comments.length > 0 && (
+                                        {/* REGULAR COMMENTS LIST */}
+                                        {comments.filter(c => !c.type || c.type === 'COMMENT').length > 0 && (
                                             <div style={{ marginTop: '1rem', borderTop: '2px dashed #ccc', paddingTop: '1rem' }}>
-                                                {comments.map(comment => (
+                                                {comments.filter(c => !c.type || c.type === 'COMMENT').map(comment => (
                                                     <div key={comment.id} style={{ marginBottom: '1rem', display: 'flex', gap: '0.75rem' }}>
                                                         {/* Avatar */}
                                                         <div style={{ width: '30px', height: '30px', backgroundColor: '#bbb', borderRadius: '4px', flexShrink: 0 }}></div>
@@ -608,7 +686,7 @@ const TaskCard = ({ task, onMove, users, onNotify }) => {
                                             </div>
                                         )}
 
-                                        {!task.completion_comment && !task.admin_reply && comments.length === 0 && <p style={{ fontStyle: 'italic', color: '#666' }}>No activity yet.</p>}
+                                        {comments.length === 0 && !task.completion_comment && !task.admin_reply && <p style={{ fontStyle: 'italic', color: '#666' }}>No activity yet.</p>}
 
                                         {/* Comment Input */}
                                         {(isAssigned || isAdmin) && (

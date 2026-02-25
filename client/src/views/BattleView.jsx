@@ -29,6 +29,17 @@ const BattleView = () => {
     const [selectedBossId, setSelectedBossId] = useState(null); // Track which boss is selected
     const [activeTab, setActiveTab] = useState('battle'); // 'battle' | 'timeline'
 
+    // Notification system
+    const [notifications, setNotifications] = useState([]);
+    const [showNotifDropdown, setShowNotifDropdown] = useState(false);
+    const [unreadCount, setUnreadCount] = useState(0);
+
+    const addNotification = (message, type = 'info') => {
+        const notif = { id: Date.now() + Math.random(), message, type, time: new Date() };
+        setNotifications(prev => [notif, ...prev].slice(0, 50));
+        setUnreadCount(prev => prev + 1);
+    };
+
     // Form state
     const [newTask, setNewTask] = useState({
         title: '',
@@ -88,10 +99,38 @@ const BattleView = () => {
             if (!task.parent_task_id) {
                 setTasks(prev => [...prev, task]);
             }
+            // Notify assignees about new assignment
+            if (task.Assignees && task.Assignees.some(a => a.id === user.id)) {
+                addNotification(`📋 You've been assigned to quest "${task.title}"`, 'assignment');
+            }
+            // Notify GM about new task creation
+            if (user.role === 'ADMIN' && task.title) {
+                addNotification(`📋 New quest created: "${task.title}"`, 'info');
+            }
         });
 
         socket.on('task_updated', (updatedTask) => {
-            setTasks(prev => prev.map(t => t.id === updatedTask.id ? updatedTask : t));
+            setTasks(prev => {
+                const oldTask = prev.find(t => t.id === updatedTask.id);
+                // Generate notification if status changed
+                if (oldTask && oldTask.status !== updatedTask.status) {
+                    const isMyTask = updatedTask.Assignees && updatedTask.Assignees.some(a => a.id === user.id);
+                    if (updatedTask.status === 'IN_PROGRESS') {
+                        if (isMyTask || user.role === 'ADMIN') {
+                            addNotification(`⚔️ Quest "${updatedTask.title}" is now in progress`, 'status');
+                        }
+                    } else if (updatedTask.status === 'PENDING_REVIEW') {
+                        if (user.role === 'ADMIN') {
+                            addNotification(`📝 Quest "${updatedTask.title}" submitted for review`, 'review');
+                        }
+                    } else if (updatedTask.status === 'DONE') {
+                        if (isMyTask || user.role === 'ADMIN') {
+                            addNotification(`✅ Quest "${updatedTask.title}" has been completed!`, 'success');
+                        }
+                    }
+                }
+                return prev.map(t => t.id === updatedTask.id ? updatedTask : t);
+            });
         });
 
         socket.on('task_deleted', (data) => {
@@ -101,14 +140,24 @@ const BattleView = () => {
         socket.on('damage_dealt', (data) => console.log(`Dealt ${data.damage} damage!`));
 
         socket.on('friend_joined', (data) => {
+            addNotification(`🤝 A friend joined quest "${data.taskTitle}"!`, 'social');
             setNotification(`A Friend has joined in helping your quest: ${data.taskTitle}!`);
             setTimeout(() => setNotification(null), 5000);
         });
 
         socket.on('reward_redeemed', (data) => {
             if (user.role === 'ADMIN') {
+                addNotification(`🎁 ${data.username} redeemed ${data.item} for ${data.cost} XP`, 'reward');
                 setNotification(`User ${data.username} redeemed ${data.item} for ${data.cost} XP!`);
                 setTimeout(() => setNotification(null), 5000);
+            }
+        });
+
+        socket.on('quest_denied', (data) => {
+            if (data.leadAssigneeId === user.id) {
+                addNotification(`⚠️ Quest "${data.taskTitle}" was denied: ${data.reason}`, 'denied');
+                setNotification(`⚠️ Quest "${data.taskTitle}" was denied: ${data.reason}`);
+                setTimeout(() => setNotification(null), 8000);
             }
         });
 
@@ -131,6 +180,7 @@ const BattleView = () => {
             socket.off('damage_dealt');
             socket.off('friend_joined');
             socket.off('reward_redeemed');
+            socket.off('quest_denied');
         };
     }, [user.role, selectedBossId]); // Removed allBosses to prevent loop
 
@@ -204,20 +254,20 @@ const BattleView = () => {
         }
     }, [allBosses, boss]); // Run whenever list or current boss changes
 
-    // Check for Victory
+    // Check for Victory - triggers when all tasks for this boss are completed
     useEffect(() => {
-        if (boss && boss.current_hp === 0 && boss.total_hp > 0) {
-            if (!victoryDismissed) {
+        if (boss && boss.total_hp > 0) {
+            const bossTasks = tasks.filter(t => t.boss_id === boss.id);
+            const allCompleted = bossTasks.length > 0 && bossTasks.every(t => t.status === 'DONE');
+            if (allCompleted && !victoryDismissed) {
                 setShowVictoryPopup(true);
+            } else if (!allCompleted) {
+                // A task was reopened — reset so popup can show again
+                setVictoryDismissed(false);
+                setShowVictoryPopup(false);
             }
-        } else {
-            // Reset dismissed state if boss recovers or changes?
-            // If we switch bosses, we should probably reset.
-            // But 'boss' dependency handles that if we check boss.id?
-            // Actually, if we switch to a DEFEATED boss, we might want to show it again unless dismissed *for that session*.
-            // For now, let's just show it.
         }
-    }, [boss, victoryDismissed]);
+    }, [boss, tasks, victoryDismissed]);
 
     // Reset dismissal when switching bosses
     useEffect(() => {
@@ -340,8 +390,16 @@ const BattleView = () => {
         }
     };
 
-    const handleMoveTask = async (taskId, status) => {
-        await api.updateTask(taskId, { status });
+    const handleMoveTask = async (taskId, status, extraComment) => {
+        const data = { status };
+        if (extraComment) {
+            if (status === 'PENDING_REVIEW') {
+                data.completion_comment = extraComment;
+            } else {
+                data.admin_reply = extraComment;
+            }
+        }
+        await api.updateTask(taskId, data);
     };
 
     const toggleAssignee = (userId) => {
@@ -457,8 +515,75 @@ const BattleView = () => {
                         <button className={`nes-btn ${activeTab === 'battle' ? 'is-primary' : ''}`} onClick={() => setActiveTab('battle')} style={{ marginRight: '1rem' }}>Battle View</button>
                         <button className={`nes-btn ${activeTab === 'timeline' ? 'is-primary' : ''}`} onClick={() => setActiveTab('timeline')}>Timeline View</button>
                     </div>
-                    <div>
-                        <button className="nes-btn is-warning" onClick={() => setShowRewards(true)} style={{ marginRight: '1rem' }}>Rewards</button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <button className="nes-btn is-warning" onClick={() => setShowRewards(true)}>Rewards</button>
+                        {/* Notification Bell */}
+                        <div style={{ position: 'relative' }}>
+                            <button
+                                className="nes-btn"
+                                onClick={() => {
+                                    setShowNotifDropdown(!showNotifDropdown);
+                                    if (!showNotifDropdown) setUnreadCount(0);
+                                }}
+                                style={{ position: 'relative', fontSize: '0.85rem' }}
+                            >
+                                🔔{unreadCount > 0 && (
+                                    <span style={{
+                                        position: 'absolute', top: '-8px', right: '-8px',
+                                        backgroundColor: '#e76e55', color: '#fff',
+                                        borderRadius: '50%', width: '22px', height: '22px',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        fontSize: '0.65rem', fontWeight: 'bold', border: '2px solid #212529'
+                                    }}>
+                                        {unreadCount > 9 ? '9+' : unreadCount}
+                                    </span>
+                                )}
+                            </button>
+                            {showNotifDropdown && (
+                                <div style={{
+                                    position: 'absolute', right: 0, top: 'calc(100% + 8px)',
+                                    width: '360px', maxHeight: '400px', overflowY: 'auto',
+                                    zIndex: 500, border: '4px solid #F7D51D',
+                                    borderRadius: '8px', backgroundColor: '#212529'
+                                }}>
+                                    <div style={{
+                                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                        padding: '0.75rem 1rem', borderBottom: '2px solid #444'
+                                    }}>
+                                        <span style={{ color: '#F7D51D', fontWeight: 'bold', fontSize: '0.85rem' }}>Notifications</span>
+                                        {notifications.length > 0 && (
+                                            <button
+                                                className="nes-btn is-small"
+                                                onClick={() => setNotifications([])}
+                                                style={{ fontSize: '0.6rem', padding: '2px 8px' }}
+                                            >Clear</button>
+                                        )}
+                                    </div>
+                                    {notifications.length === 0 ? (
+                                        <div style={{ padding: '1.5rem', textAlign: 'center', color: '#888', fontSize: '0.8rem' }}>
+                                            No notifications yet
+                                        </div>
+                                    ) : (
+                                        notifications.map(n => (
+                                            <div key={n.id} style={{
+                                                padding: '0.6rem 1rem',
+                                                borderBottom: '1px solid #333',
+                                                color: '#ddd', fontSize: '0.75rem',
+                                                transition: 'background 0.2s'
+                                            }}
+                                                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#2a2f35'}
+                                                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                                            >
+                                                <div>{n.message}</div>
+                                                <div style={{ color: '#666', fontSize: '0.6rem', marginTop: '4px' }}>
+                                                    {new Date(n.time).toLocaleTimeString()}
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            )}
+                        </div>
                         <button className="nes-btn is-error" onClick={() => localStorage.clear() || window.location.reload()}>Logout</button>
                     </div>
                 </div>
@@ -497,7 +622,7 @@ const BattleView = () => {
                                 {isAdmin && (
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', marginTop: '0.75rem' }}>
                                         <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                            <button className="nes-btn is-success" onClick={() => setShowTaskForm(true)} style={{ fontSize: '0.75rem' }}>+ New Quest</button>
+                                            {boss && <button className="nes-btn is-success" onClick={() => setShowTaskForm(true)} style={{ fontSize: '0.75rem' }}>+ New Quest</button>}
                                             <button className="nes-btn is-primary" onClick={() => setShowBossForm(true)} style={{ fontSize: '0.75rem' }}>Summon Boss</button>
                                         </div>
                                         {boss && (
@@ -1194,19 +1319,27 @@ const BattleView = () => {
                                 <p style={{ borderBottom: '2px solid #fff', paddingBottom: '0.5rem' }}>Heroes of the Realm:</p>
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
                                     {(() => {
-                                        // Get all DONE tasks for this boss
-                                        const completedTasks = tasks.filter(t => t.boss_id === boss.id && t.status === 'DONE');
+                                        // Get all tasks for this boss (all contributed to defeating it)
+                                        const bossTasks = tasks.filter(t => t.boss_id === boss.id);
                                         const contributorIds = new Set();
 
-                                        completedTasks.forEach(t => {
-                                            if (t.Assignees) {
+                                        bossTasks.forEach(t => {
+                                            if (t.Assignees && Array.isArray(t.Assignees)) {
                                                 t.Assignees.forEach(u => contributorIds.add(u.id));
                                             }
-                                            // Also add lead assignee if not in Assignees list for some reason (though robust data should have it)
                                             if (t.assigned_to) contributorIds.add(t.assigned_to);
                                         });
 
-                                        if (contributorIds.size === 0) return <p>No specific heroes recorded.</p>;
+                                        if (contributorIds.size === 0) {
+                                            // Fallback: show all non-admin users if no specific assignees found
+                                            const allHeroes = users.filter(u => u.role !== 'ADMIN');
+                                            if (allHeroes.length === 0) return <p>No specific heroes recorded.</p>;
+                                            return allHeroes.map(u => (
+                                                <span key={u.id} className="nes-badge">
+                                                    <span className="is-warning">{u.username}</span>
+                                                </span>
+                                            ));
+                                        }
 
                                         return Array.from(contributorIds).map(id => {
                                             const u = users.find(user => user.id === id);
