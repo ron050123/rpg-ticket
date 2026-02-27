@@ -4,8 +4,7 @@ const User = require('./User');
 const Boss = require('./Boss');
 const Task = require('./Task');
 const Reward = require('./Reward');
-
-
+const Notification = require('./Notification');
 
 const Comment = require('./Comment');
 
@@ -31,12 +30,16 @@ User.hasMany(Comment, { foreignKey: 'userId' });
 Comment.belongsTo(Task, { foreignKey: 'taskId', onDelete: 'CASCADE' });
 Task.hasMany(Comment, { foreignKey: 'taskId', onDelete: 'CASCADE' });
 
+// Notification Associations
+Notification.belongsTo(User, { foreignKey: 'userId' });
+User.hasMany(Notification, { foreignKey: 'userId' });
+
 module.exports = {
     User,
     Boss,
     Task,
-    Task,
     Comment,
     Reward,
+    Notification,
     sequelize
 };

@@ -80,6 +80,7 @@ const BattleView = () => {
         loadUsers();
         loadAllBosses();
         loadRewards();
+        loadNotifications();
     }, []);
 
     // Socket Listeners
@@ -280,6 +281,21 @@ const BattleView = () => {
             const list = await api.getRewards();
             setRewards(list);
         } catch (e) { console.error(e); }
+    };
+
+    const loadNotifications = async () => {
+        try {
+            const saved = await api.getNotifications();
+            // Convert DB notifications to the format used by the client
+            const mapped = saved.map(n => ({
+                id: n.id,
+                message: n.message,
+                type: n.type,
+                time: new Date(n.createdAt)
+            }));
+            setNotifications(mapped);
+            setUnreadCount(saved.filter(n => !n.read).length);
+        } catch (e) { console.error('Failed to load notifications:', e); }
     };
 
     const handleCreateTask = async (e) => {
@@ -484,7 +500,7 @@ const BattleView = () => {
         <div style={{ position: 'relative', minHeight: '100vh' }}>
             {/* FULL-SCREEN BOSS ARENA BACKGROUND */}
             <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 0 }}>
-                <BossArena boss={boss} />
+                <BossArena boss={boss} userClass={user?.class} />
             </div>
 
             {notification && (
@@ -523,7 +539,10 @@ const BattleView = () => {
                                 className="nes-btn"
                                 onClick={() => {
                                     setShowNotifDropdown(!showNotifDropdown);
-                                    if (!showNotifDropdown) setUnreadCount(0);
+                                    if (!showNotifDropdown) {
+                                        setUnreadCount(0);
+                                        api.markNotificationsRead().catch(e => console.error(e));
+                                    }
                                 }}
                                 style={{ position: 'relative', fontSize: '0.85rem' }}
                             >
@@ -554,7 +573,10 @@ const BattleView = () => {
                                         {notifications.length > 0 && (
                                             <button
                                                 className="nes-btn is-small"
-                                                onClick={() => setNotifications([])}
+                                                onClick={() => {
+                                                    setNotifications([]);
+                                                    api.clearNotifications().catch(e => console.error(e));
+                                                }}
                                                 style={{ fontSize: '0.6rem', padding: '2px 8px' }}
                                             >Clear</button>
                                         )}

@@ -162,21 +162,63 @@
     white-space: nowrap;
 }
 
-/* ===== BOSS SPRITE ===== */
-.boss-sprite-container {
-    position: relative;
+/* ===== BATTLE SCENE ===== */
+.battle-scene {
+    position: absolute;
+    top: 90px;
+    left: 0;
+    right: 0;
+    bottom: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 40px;
     z-index: 5;
-    animation: boss-idle 3s ease-in-out infinite;
-    margin-bottom: 60px;
 }
 
-.boss-sprite-container.defeated {
-    animation: boss-defeated 2s ease-in-out infinite;
-    opacity: 0.5;
-    filter: grayscale(0.8);
+/* Hero side */
+.battle-hero {
+    position: relative;
+    animation: hero-bob 2s ease-in-out infinite;
 }
 
-@keyframes boss-idle {
+.battle-hero.hero-fighting {
+    animation: hero-fight 0.6s ease-in-out infinite;
+}
+
+.battle-hero.hero-victory {
+    animation: hero-victory-bounce 1s ease-in-out infinite;
+}
+
+@keyframes hero-bob {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-5px);
+    }
+}
+
+@keyframes hero-fight {
+
+    0%,
+    100% {
+        transform: translateX(0) translateY(0);
+    }
+
+    30% {
+        transform: translateX(12px) translateY(-4px);
+    }
+
+    60% {
+        transform: translateX(8px) translateY(0);
+    }
+}
+
+@keyframes hero-victory-bounce {
 
     0%,
     100% {
@@ -188,246 +230,115 @@
     }
 }
 
-@keyframes boss-defeated {
+/* Attack effects between hero and boss */
+.attack-effects {
+    position: absolute;
+    right: -40px;
+    top: 20%;
+    width: 40px;
+    height: 60%;
+    pointer-events: none;
+}
+
+.slash {
+    position: absolute;
+    width: 3px;
+    height: 16px;
+    background: linear-gradient(to bottom, rgba(255, 255, 100, 0.9), rgba(255, 200, 50, 0));
+    border-radius: 2px;
+    animation: slash-flash 0.8s ease-out infinite;
+}
+
+.slash-1 {
+    left: 5px;
+    top: 10%;
+    transform: rotate(25deg);
+    animation-delay: 0s;
+}
+
+.slash-2 {
+    left: 15px;
+    top: 30%;
+    transform: rotate(-15deg);
+    animation-delay: 0.25s;
+}
+
+.slash-3 {
+    left: 25px;
+    top: 55%;
+    transform: rotate(35deg);
+    animation-delay: 0.5s;
+}
+
+@keyframes slash-flash {
+    0% {
+        opacity: 0;
+        transform: scale(0.5) rotate(25deg);
+    }
+
+    30% {
+        opacity: 1;
+        transform: scale(1.2) rotate(25deg);
+    }
+
+    70% {
+        opacity: 0.8;
+        transform: scale(1) rotate(25deg);
+    }
+
+    100% {
+        opacity: 0;
+        transform: scale(0.5) rotate(25deg);
+    }
+}
+
+/* Boss side */
+.battle-boss {
+    position: relative;
+    animation: boss-hover 3s ease-in-out infinite;
+    filter: drop-shadow(0 0 20px rgba(120, 50, 150, 0.4));
+}
+
+.battle-boss.boss-fallen {
+    animation: boss-fall 2s ease-in-out forwards;
+    filter: grayscale(0.6) brightness(0.6);
+}
+
+@keyframes boss-hover {
 
     0%,
     100% {
-        transform: translateY(10px) rotate(5deg);
-        opacity: 0.4;
+        transform: translateY(0);
     }
 
     50% {
-        transform: translateY(15px) rotate(-5deg);
-        opacity: 0.6;
+        transform: translateY(-12px);
+    }
+}
+
+@keyframes boss-fall {
+    0% {
+        transform: translateY(0) rotate(0deg);
+        opacity: 1;
+    }
+
+    60% {
+        transform: translateY(5px) rotate(3deg);
+        opacity: 0.7;
+    }
+
+    100% {
+        transform: translateY(10px) rotate(5deg);
+        opacity: 0.5;
     }
 }
 
 .boss-sprite--custom {
-    width: 200px;
-    height: 200px;
+    width: 160px;
+    height: 160px;
     object-fit: contain;
     image-rendering: pixelated;
     filter: drop-shadow(0 0 20px rgba(255, 100, 0, 0.5));
-}
-
-/* ===== CSS PIXEL DRAGON ===== */
-.pixel-dragon {
-    width: 180px;
-    height: 160px;
-    position: relative;
-    filter: drop-shadow(0 0 25px rgba(255, 50, 0, 0.4));
-}
-
-.dragon-body {
-    position: absolute;
-    width: 80px;
-    height: 60px;
-    background: #8b2252;
-    left: 50px;
-    top: 50px;
-    border-radius: 4px;
-    box-shadow:
-        /* head */
-        -30px -20px 0 0 #9b3262,
-        -30px -10px 0 0 #9b3262,
-        -40px -10px 0 0 #8b2252,
-        -20px -20px 0 0 #9b3262,
-        /* lower body */
-        10px 10px 0 0 #7b1242,
-        20px 10px 0 0 #7b1242,
-        /* legs */
-        10px 20px 0 0 #6b0232,
-        20px 20px 0 0 #6b0232,
-        60px 20px 0 0 #6b0232,
-        70px 20px 0 0 #6b0232,
-        /* claws */
-        5px 30px 0 0 #ffcc00,
-        25px 30px 0 0 #ffcc00,
-        55px 30px 0 0 #ffcc00,
-        75px 30px 0 0 #ffcc00;
-    image-rendering: pixelated;
-}
-
-.dragon-wing--left {
-    position: absolute;
-    width: 0;
-    height: 0;
-    border-left: 35px solid transparent;
-    border-right: 35px solid transparent;
-    border-bottom: 50px solid #6b0232;
-    left: 30px;
-    top: 0;
-    animation: wing-flap 1.5s ease-in-out infinite;
-    transform-origin: bottom center;
-}
-
-.dragon-wing--right {
-    position: absolute;
-    width: 0;
-    height: 0;
-    border-left: 35px solid transparent;
-    border-right: 35px solid transparent;
-    border-bottom: 50px solid #6b0232;
-    left: 90px;
-    top: 0;
-    animation: wing-flap 1.5s ease-in-out infinite reverse;
-    transform-origin: bottom center;
-}
-
-@keyframes wing-flap {
-
-    0%,
-    100% {
-        transform: scaleY(1) rotate(-5deg);
-    }
-
-    50% {
-        transform: scaleY(0.7) rotate(5deg);
-    }
-}
-
-.dragon-eye--left {
-    position: absolute;
-    width: 8px;
-    height: 8px;
-    background: #ff0000;
-    border-radius: 50%;
-    left: 28px;
-    top: 35px;
-    box-shadow: 0 0 8px #ff0000, 0 0 16px rgba(255, 0, 0, 0.5);
-    animation: eye-glow 2s ease-in-out infinite;
-}
-
-.dragon-eye--right {
-    position: absolute;
-    width: 8px;
-    height: 8px;
-    background: #ff0000;
-    border-radius: 50%;
-    left: 44px;
-    top: 35px;
-    box-shadow: 0 0 8px #ff0000, 0 0 16px rgba(255, 0, 0, 0.5);
-    animation: eye-glow 2s ease-in-out infinite 0.1s;
-}
-
-@keyframes eye-glow {
-
-    0%,
-    100% {
-        box-shadow: 0 0 8px #ff0000, 0 0 16px rgba(255, 0, 0, 0.5);
-    }
-
-    50% {
-        box-shadow: 0 0 15px #ff4444, 0 0 30px rgba(255, 0, 0, 0.8);
-    }
-}
-
-.dragon-horn--left {
-    position: absolute;
-    width: 6px;
-    height: 18px;
-    background: #ffcc00;
-    left: 22px;
-    top: 18px;
-    transform: rotate(-15deg);
-    border-radius: 2px 2px 0 0;
-}
-
-.dragon-horn--right {
-    position: absolute;
-    width: 6px;
-    height: 18px;
-    background: #ffcc00;
-    left: 50px;
-    top: 18px;
-    transform: rotate(15deg);
-    border-radius: 2px 2px 0 0;
-}
-
-.dragon-mouth {
-    position: absolute;
-    width: 20px;
-    height: 6px;
-    background: #ff4444;
-    left: 26px;
-    top: 50px;
-    border-radius: 0 0 4px 4px;
-}
-
-.dragon-tail {
-    position: absolute;
-    width: 50px;
-    height: 8px;
-    background: #7b1242;
-    right: -10px;
-    top: 80px;
-    border-radius: 0 4px 4px 0;
-    animation: tail-wag 2s ease-in-out infinite;
-    transform-origin: left center;
-}
-
-@keyframes tail-wag {
-
-    0%,
-    100% {
-        transform: rotate(-5deg);
-    }
-
-    50% {
-        transform: rotate(10deg);
-    }
-}
-
-/* ===== FIRE BREATH ===== */
-.dragon-fire {
-    position: absolute;
-    left: 10px;
-    top: 48px;
-}
-
-.fire-particle {
-    position: absolute;
-    border-radius: 50%;
-    animation: fire-breathe 1.5s ease-out infinite;
-}
-
-.fire-1 {
-    width: 12px;
-    height: 12px;
-    background: #ff6600;
-    left: -15px;
-    top: -5px;
-    animation-delay: 0s;
-}
-
-.fire-2 {
-    width: 8px;
-    height: 8px;
-    background: #ffcc00;
-    left: -25px;
-    top: -2px;
-    animation-delay: 0.3s;
-}
-
-.fire-3 {
-    width: 6px;
-    height: 6px;
-    background: #ff4400;
-    left: -35px;
-    top: 2px;
-    animation-delay: 0.6s;
-}
-
-@keyframes fire-breathe {
-    0% {
-        transform: translateX(0) scale(1);
-        opacity: 1;
-    }
-
-    100% {
-        transform: translateX(-30px) scale(0.3);
-        opacity: 0;
-    }
 }
 
 /* ===== DEFEATED OVERLAY ===== */
@@ -513,6 +424,10 @@
 /* ===== RAGE MODE ===== */
 .boss-arena--rage .arena-bg {
     animation: rage-bg 0.5s ease-in-out infinite;
+}
+
+.boss-arena--rage .battle-boss {
+    filter: drop-shadow(0 0 30px rgba(255, 50, 0, 0.6));
 }
 
 @keyframes rage-bg {

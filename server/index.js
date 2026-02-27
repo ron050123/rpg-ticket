@@ -29,6 +29,7 @@ app.use('/api/tasks', require('./routes/tasks'));
 app.use('/api/comments', require('./routes/comments'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/rewards', require('./routes/rewards'));
+app.use('/api/notifications', require('./routes/notifications'));
 
 // Socket.io connection
 io.on('connection', (socket) => {

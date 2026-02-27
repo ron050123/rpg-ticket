@@ -1,5 +1,5 @@
 const express = require('express');
-const { Task, Boss, User, Comment } = require('../models');
+const { Task, Boss, User, Comment, Notification } = require('../models');
 const { requireAdmin, verifyToken } = require('../middleware/auth');
 
 const router = express.Router();
@@ -150,6 +150,26 @@ router.post('/', verifyToken, async (req, res) => {
             req.io.emit('task_created', taskWithUsers);
         }
 
+        // Persist notifications for assignees
+        if (assignee_ids && assignee_ids.length > 0) {
+            for (const uid of assignee_ids) {
+                await Notification.create({
+                    message: `📋 You've been assigned to quest "${task.title}"`,
+                    type: 'assignment',
+                    userId: parseInt(uid)
+                });
+            }
+        }
+        // Persist notification for all admins
+        const admins = await User.findAll({ where: { role: 'ADMIN' } });
+        for (const admin of admins) {
+            await Notification.create({
+                message: `📋 New quest created: "${task.title}"`,
+                type: 'info',
+                userId: admin.id
+            });
+        }
+
         res.status(201).json(taskWithUsers);
 
     } catch (error) {
@@ -232,6 +252,14 @@ router.put('/:id', verifyToken, async (req, res) => {
                 reason: admin_reply || 'No reason provided',
                 leadAssigneeId: task.assigned_to
             });
+            // Persist denial notification for lead assignee
+            if (task.assigned_to) {
+                await Notification.create({
+                    message: `⚠️ Quest "${task.title}" was denied: ${admin_reply || 'No reason provided'}`,
+                    type: 'denied',
+                    userId: task.assigned_to
+                });
+            }
         }
 
         if (isAdmin && assignee_ids) {
@@ -249,6 +277,22 @@ router.put('/:id', verifyToken, async (req, res) => {
                     taskTitle: task.title,
                     newAssigneeCount: addedIds.length
                 });
+                // Persist friend-joined notification for existing assignees
+                for (const existingId of oldAssigneeIds) {
+                    await Notification.create({
+                        message: `🤝 A friend joined quest "${task.title}"!`,
+                        type: 'social',
+                        userId: existingId
+                    });
+                }
+            }
+            // Persist assignment notification for newly added users
+            for (const addedId of addedIds) {
+                await Notification.create({
+                    message: `📋 You've been assigned to quest "${task.title}"`,
+                    type: 'assignment',
+                    userId: addedId
+                });
             }
 
             await task.setAssignees(assignee_ids);
@@ -258,6 +302,26 @@ router.put('/:id', verifyToken, async (req, res) => {
         // This block runs when an ADMIN moves a task to DONE (approving it)
         if (oldStatus !== 'DONE' && status === 'DONE') {
             const currentAssignees = await task.getAssignees();
+
+            // Persist completion notification for all assignees
+            for (const assignee of currentAssignees) {
+                await Notification.create({
+                    message: `✅ Quest "${task.title}" has been completed!`,
+                    type: 'success',
+                    userId: assignee.id
+                });
+            }
+            // Persist for admins too
+            const completionAdmins = await User.findAll({ where: { role: 'ADMIN' } });
+            for (const admin of completionAdmins) {
+                if (!currentAssignees.some(a => a.id === admin.id)) {
+                    await Notification.create({
+                        message: `✅ Quest "${task.title}" has been completed!`,
+                        type: 'success',
+                        userId: admin.id
+                    });
+                }
+            }
 
             // 1. Deal Damage to Boss (ONLY Main Quests, not side quests)
             // Side quests award XP but don't damage the boss

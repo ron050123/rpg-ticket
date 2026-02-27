@@ -1,5 +1,5 @@
 const express = require('express');
-const { User } = require('../models');
+const { User, Notification } = require('../models');
 const router = express.Router();
 
 // Exchange XP for items
@@ -33,6 +33,16 @@ router.post('/exchange', async (req, res) => {
             });
         }
 
+        // Persist notification for all admins
+        const admins = await User.findAll({ where: { role: 'ADMIN' } });
+        for (const admin of admins) {
+            await Notification.create({
+                message: `🎁 ${user.username} redeemed ${item} for ${cost} XP`,
+                type: 'reward',
+                userId: admin.id
+            });
+        }
+
         res.json({ success: true, newXP: user.xp, message: `Successfully exchanged ${cost} XP for ${item}` });
     } catch (error) {
         console.error('Exchange error:', error);
@@ -41,3 +51,4 @@ router.post('/exchange', async (req, res) => {
 });
 
 module.exports = router;
+

@@ -1,25 +1,83 @@
+/* ================= PAGE LAYOUT ================= */
+.login-page {
+    position: relative;
+    min-height: 100vh;
+    overflow: hidden;
+}
+
+.login-center {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 2rem 1rem;
+    box-sizing: border-box;
+}
+
+/* ================= BACKGROUND ================= */
 .login-bg {
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background: linear-gradient(to bottom, #87CEEB 0%, #E0F6FF 100%);
+    background: linear-gradient(to bottom, #0a0a2e 0%, #1a1a4e 40%, #2d1f5e 70%, #3d2b5a 100%);
     z-index: 0;
     overflow: hidden;
 }
 
+.login-bg::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image:
+        radial-gradient(1px 1px at 10% 10%, #fff 50%, transparent 50%),
+        radial-gradient(1px 1px at 20% 30%, #fff 50%, transparent 50%),
+        radial-gradient(1px 1px at 40% 15%, #fff 50%, transparent 50%),
+        radial-gradient(1px 1px at 55% 25%, #fff 50%, transparent 50%),
+        radial-gradient(1px 1px at 70% 8%, #fff 50%, transparent 50%),
+        radial-gradient(1px 1px at 85% 35%, #fff 50%, transparent 50%),
+        radial-gradient(2px 2px at 30% 5%, #FFD700 50%, transparent 50%),
+        radial-gradient(2px 2px at 60% 20%, #FFD700 50%, transparent 50%),
+        radial-gradient(1px 1px at 15% 45%, #fff 50%, transparent 50%),
+        radial-gradient(1px 1px at 45% 40%, #fff 50%, transparent 50%),
+        radial-gradient(1px 1px at 75% 50%, #fff 50%, transparent 50%),
+        radial-gradient(1px 1px at 90% 15%, #fff 50%, transparent 50%),
+        radial-gradient(1px 1px at 5% 60%, #fff 50%, transparent 50%),
+        radial-gradient(1px 1px at 35% 70%, #fff 50%, transparent 50%),
+        radial-gradient(1px 1px at 65% 55%, #fff 50%, transparent 50%),
+        radial-gradient(2px 2px at 50% 80%, #FFD700 50%, transparent 50%);
+    animation: twinkle 4s ease-in-out infinite alternate;
+}
+
+@keyframes twinkle {
+    0% {
+        opacity: 0.5;
+    }
+
+    100% {
+        opacity: 1;
+    }
+}
+
+/* ================= CLOUDS ================= */
 .pixel-cloud {
     position: absolute;
-    width: 100px;
-    height: 30px;
-    background: #fff;
+    width: 60px;
+    height: 18px;
+    background: rgba(255, 255, 255, 0.1);
     box-shadow:
-        30px -30px 0 0 #fff,
-        60px 0 0 0 #fff,
-        30px 30px 0 0 #fff,
-        -30px 0 0 0 #fff;
-    opacity: 0.9;
+        18px -18px 0 0 rgba(255, 255, 255, 0.1),
+        36px 0 0 0 rgba(255, 255, 255, 0.1),
+        18px 18px 0 0 rgba(255, 255, 255, 0.1),
+        -18px 0 0 0 rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
 }
 
 .cloud-1 {
@@ -45,7 +103,7 @@
 }
 
 .cloud-4 {
-    top: 60%;
+    top: 55%;
     left: -20%;
     animation: float 30s linear infinite;
     animation-delay: 8s;
@@ -62,13 +120,14 @@
     }
 }
 
+/* ================= INTRO ================= */
 .intro-overlay {
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background: #212529;
+    background: #0a0a2e;
     color: #fff;
     display: flex;
     justify-content: center;
@@ -115,14 +174,14 @@
     }
 }
 
+/* ================= TITLE ================= */
 .main-title {
     font-size: 2.5rem;
-    color: #FF4500;
-    text-shadow: 4px 4px 0 #000;
+    color: #FFD700;
+    text-shadow: 4px 4px 0 #000, 0 0 20px rgba(255, 215, 0, 0.3);
     margin-bottom: 2rem;
     text-align: center;
     font-family: 'Press Start 2P', 'VT323', cursive;
-    /* subtle float */
     animation: titleFloat 3s ease-in-out infinite;
 }
 
@@ -135,5 +194,262 @@
 
     50% {
         transform: translateY(-10px);
+    }
+}
+
+/* ================= LOGIN BOX (custom, no NES.css) ================= */
+.login-box {
+    background: rgba(33, 37, 41, 0.95);
+    border: 4px solid #4a4a8a;
+    border-radius: 4px;
+    padding: 1.5rem;
+    color: #e0e0ff;
+    text-align: center;
+    position: relative;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.login-box-title {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 0.85rem;
+    color: #FFD700;
+    background: #212529;
+    display: inline-block;
+    padding: 0.25rem 1rem;
+    position: relative;
+    top: -2rem;
+    margin-bottom: -1.5rem;
+    border: 4px solid #4a4a8a;
+    border-radius: 4px;
+}
+
+.login-error {
+    color: #e74c3c;
+    font-size: 0.8rem;
+    margin-bottom: 1rem;
+}
+
+/* ================= LOGIN BODY LAYOUT ================= */
+.login-body {
+    display: flex;
+    gap: 2rem;
+    justify-content: center;
+}
+
+.login-body.expanded {
+    justify-content: flex-start;
+}
+
+/* ================= FORM FIELDS ================= */
+.login-fields {
+    width: 300px;
+    flex-shrink: 0;
+    text-align: left;
+}
+
+.field-group {
+    margin-bottom: 1rem;
+}
+
+.field-group label {
+    display: block;
+    color: #aaa;
+    font-size: 0.8rem;
+    margin-bottom: 0.3rem;
+}
+
+.field-group .nes-input {
+    width: 100%;
+    box-sizing: border-box;
+    background-color: #2a2f35;
+    color: #fff;
+    border-color: #4a4a8a;
+}
+
+/* ================= CLASS PANEL ================= */
+.class-panel {
+    width: 280px;
+    flex-shrink: 0;
+    animation: panelSlideIn 0.3s ease;
+}
+
+.class-panel-title {
+    color: #FFD700;
+    font-weight: bold;
+    display: block;
+    margin-bottom: 0.75rem;
+    font-size: 0.85rem;
+}
+
+@keyframes panelSlideIn {
+    from {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* ================= HERO GRID ================= */
+.hero-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.6rem;
+}
+
+/* ================= HERO CARD ================= */
+.hero-card {
+    position: relative;
+    background: rgba(20, 20, 50, 0.8);
+    border: 3px solid #444;
+    border-radius: 8px;
+    padding: 0.5rem;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.25s ease;
+    overflow: hidden;
+}
+
+.hero-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at center, var(--hero-glow, transparent) 0%, transparent 70%);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+}
+
+.hero-card:hover {
+    border-color: var(--hero-color, #666);
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+
+.hero-card:hover::before {
+    opacity: 0.3;
+}
+
+.hero-card.selected {
+    border-color: var(--hero-color, #FFD700);
+    box-shadow: 0 0 15px var(--hero-glow), 0 4px 15px rgba(0, 0, 0, 0.3);
+    background: rgba(30, 30, 70, 0.9);
+}
+
+.hero-card.selected::before {
+    opacity: 0.4;
+}
+
+.hero-card.selected::after {
+    content: '✓';
+    position: absolute;
+    top: 4px;
+    right: 6px;
+    color: var(--hero-color, #FFD700);
+    font-size: 0.8rem;
+    font-weight: bold;
+}
+
+/* ================= HERO CARD SPRITE ================= */
+.hero-card-sprite {
+    margin: 0 auto 0.3rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 66px;
+}
+
+.hero-card-sprite-sm {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.hero-card-name {
+    color: var(--hero-color, #fff);
+    font-size: 0.7rem;
+    font-weight: bold;
+    margin-bottom: 0.15rem;
+}
+
+.hero-card-perk {
+    color: #999;
+    font-size: 0.55rem;
+    line-height: 1.3;
+}
+
+/* ================= GRANDMASTER CARD ================= */
+.hero-card.grandmaster-card {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    text-align: left;
+    border-style: dashed;
+}
+
+.hero-card.grandmaster-card.selected {
+    border-style: solid;
+    background: linear-gradient(135deg, rgba(40, 30, 10, 0.9) 0%, rgba(60, 40, 10, 0.9) 100%);
+}
+
+/* ================= HERO PREVIEW ================= */
+.selected-hero-preview {
+    text-align: center;
+    padding: 1rem;
+    border-radius: 8px;
+    border: 3px solid;
+    background-color: rgba(0, 0, 0, 0.3);
+    margin-top: 1rem;
+    animation: previewAppear 0.3s ease;
+}
+
+.preview-name {
+    font-weight: bold;
+    font-size: 1rem;
+    margin-top: 0.5rem;
+}
+
+.preview-perk {
+    color: #aaa;
+    font-size: 0.7rem;
+    margin-top: 0.25rem;
+}
+
+@keyframes previewAppear {
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* ================= RESPONSIVE ================= */
+@media (max-width: 700px) {
+    .login-body {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .login-fields {
+        width: 100%;
+    }
+
+    .class-panel {
+        width: 100%;
+    }
+
+    .main-title {
+        font-size: 1.5rem;
     }
 }

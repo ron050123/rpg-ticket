@@ -159,5 +159,27 @@ export const api = {
         });
         if (!res.ok) throw await res.json();
         return res.json();
+    },
+    // Notifications
+    getNotifications: async () => {
+        const res = await fetch(`${API_URL}/notifications`, { headers: getHeaders() });
+        if (!res.ok) throw await res.json();
+        return res.json();
+    },
+    markNotificationsRead: async () => {
+        const res = await fetch(`${API_URL}/notifications/read`, {
+            method: 'PUT',
+            headers: getHeaders()
+        });
+        if (!res.ok) throw await res.json();
+        return res.json();
+    },
+    clearNotifications: async () => {
+        const res = await fetch(`${API_URL}/notifications`, {
+            method: 'DELETE',
+            headers: getHeaders()
+        });
+        if (!res.ok) throw await res.json();
+        return res.json();
     }
 };
