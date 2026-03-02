@@ -75,7 +75,7 @@
 /* ===== BOSS NAME ===== */
 .arena-boss-name {
     position: absolute;
-    top: 20px;
+    top: 10px;
     left: 50%;
     transform: translateX(-50%);
     z-index: 10;
@@ -165,10 +165,10 @@
 /* ===== BATTLE SCENE ===== */
 .battle-scene {
     position: absolute;
-    top: 90px;
+    top: 30px;
     left: 0;
     right: 0;
-    bottom: 80px;
+    bottom: 20px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -334,8 +334,8 @@
 }
 
 .boss-sprite--custom {
-    width: 160px;
-    height: 160px;
+    width: 240px;
+    height: 240px;
     object-fit: contain;
     image-rendering: pixelated;
     filter: drop-shadow(0 0 20px rgba(255, 100, 0, 0.5));

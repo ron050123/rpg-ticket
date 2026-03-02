@@ -56,17 +56,6 @@ const BossArena = ({ boss, userClass }) => {
                     <span>{boss.name}</span>
                 </div>
 
-                {/* HP Bar */}
-                <div className="arena-hp-bar-container">
-                    <div className="arena-hp-label">HP</div>
-                    <div className="arena-hp-bar">
-                        <div
-                            className={`arena-hp-fill ${isLowHP ? 'hp-low' : ''}`}
-                            style={{ width: `${hpPercent}%` }}
-                        />
-                    </div>
-                    <div className="arena-hp-text">{boss.current_hp}/{boss.total_hp}</div>
-                </div>
 
                 {/* ===== BATTLE SCENE ===== */}
                 <div className="battle-scene">
@@ -76,7 +65,7 @@ const BossArena = ({ boss, userClass }) => {
                             <SpriteHero
                                 heroClass={userClass}
                                 active={!isDefeated}
-                                size={150}
+                                size={220}
                             />
                             {/* Attack slash effect */}
                             {!isDefeated && (
@@ -98,7 +87,7 @@ const BossArena = ({ boss, userClass }) => {
                                 className="boss-sprite boss-sprite--custom"
                             />
                         ) : (
-                            <SpriteBoss state={bossState} size={260} />
+                            <SpriteBoss state={bossState} size={380} />
                         )}
                     </div>
                 </div>

@@ -1,10 +1,10 @@
 const { Reward } = require('../models');
 
 const defaultRewards = [
-    { name: 'Redbull', cost: 20, description: 'Gives you wings (and energy)', image_url: '' },
-    { name: 'Coffee', cost: 30, description: 'Wake up!', image_url: '' },
-    { name: 'Snacks', cost: 15, description: 'Yummy treats', image_url: '' },
-    { name: 'Bao Bun', cost: 50, description: 'Steamed goodness', image_url: '' }
+    { name: 'Redbull', cost: 20, description: 'Gives you wings (and energy)', image_url: '/rewards/redbull.png' },
+    { name: 'Coffee', cost: 30, description: 'Wake up!', image_url: '/rewards/coffee.png' },
+    { name: 'Snacks', cost: 15, description: 'Yummy treats', image_url: '/rewards/snacks.png' },
+    { name: 'Bao Bun', cost: 50, description: 'Steamed goodness', image_url: '/rewards/baobun.png' }
 ];
 
 async function seedRewards() {
