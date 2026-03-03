@@ -80,7 +80,7 @@ const BossArena = ({ boss, userClass }) => {
 
                     {/* Boss on the right */}
                     <div className={`battle-boss ${isDefeated ? 'boss-fallen' : ''}`}>
-                        {boss.image_url ? (
+                        {boss.image_url && boss.image_url.startsWith('http') ? (
                             <img
                                 src={boss.image_url}
                                 alt={boss.name}
@@ -90,12 +90,16 @@ const BossArena = ({ boss, userClass }) => {
                             <SpriteBoss state={bossState} size={380} />
                         )}
                     </div>
+
+                    {/* Defeated text centered over the battle */}
+                    {isDefeated && (
+                        <span className="defeated-text defeated-text-inline">DEFEATED</span>
+                    )}
                 </div>
 
-                {/* Defeated overlay */}
+                {/* Defeated sparkles overlay */}
                 {isDefeated && (
                     <div className="defeated-overlay">
-                        <span className="defeated-text">DEFEATED</span>
                         <div className="defeated-sparkles">
                             {Array.from({ length: 8 }).map((_, i) => (
                                 <div key={i} className="sparkle" style={{

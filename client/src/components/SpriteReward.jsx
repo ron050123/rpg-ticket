@@ -1,14 +1,28 @@
 import React, { useRef, useEffect, useState } from 'react';
-import bossDragonSprite from '../assets/boss_dragon_sprite.png';
+
+import redbullSprite from '../assets/redbull_sprite.png';
+import coffeeSprite from '../assets/coffee_sprite.png';
+import snacksSprite from '../assets/snacks_sprite.png';
+import baobunSprite from '../assets/baobun_sprite.png';
 
 /*
-  Boss sprite with auto-frame-detection.
-  Detects character frames automatically from non-uniform sprite sheets.
+  Animated reward sprite component.
+  Auto-detects frames from sprite sheets and loops through them.
 */
 
+const REWARD_SPRITES = {
+    redbull: redbullSprite,
+    coffee: coffeeSprite,
+    snacks: snacksSprite,
+    'bao bun': baobunSprite,
+    baobun: baobunSprite,
+    'bao': baobunSprite,
+};
+
+/* ---------- background removal ---------- */
 const processedCache = {};
 
-function removeBackground(img, tolerance = 35) {
+function removeBackground(img, tolerance = 40) {
     const cacheKey = img.src;
     if (processedCache[cacheKey]) return processedCache[cacheKey];
 
@@ -52,8 +66,7 @@ function removeBackground(img, tolerance = 35) {
 /* ---------- auto-detect frame bounding boxes ---------- */
 const frameCache = {};
 
-function detectFrames(canvas) {
-    const cacheKey = 'boss_' + canvas.width + '_' + canvas.height;
+function detectFrames(canvas, cacheKey) {
     if (frameCache[cacheKey]) return frameCache[cacheKey];
 
     const ctx = canvas.getContext('2d');
@@ -109,130 +122,67 @@ function detectFrames(canvas) {
         h: cropH,
     }));
 
-    // If fewer than 4, try grid detection (rows x cols)
-    if (frames.length < 4) {
-        const rowHasPixel = new Array(height).fill(false);
-        for (let y = 0; y < height; y++) {
-            for (let x = 0; x < width; x++) {
-                if (data[(y * width + x) * 4 + 3] > 10) { rowHasPixel[y] = true; break; }
-            }
+    // Fallback: uniform 4-column split
+    if (frames.length < 2) {
+        const sliceW = Math.floor(width / 4);
+        frames = [];
+        for (let i = 0; i < 4; i++) {
+            frames.push({ x: i * sliceW, y: cropMinY, w: sliceW, h: cropH });
         }
-        const rowSegments = [];
-        let rInSeg = false, rStart = 0, rGap = 0;
-        for (let y = 0; y < height; y++) {
-            if (rowHasPixel[y]) {
-                if (!rInSeg) { rInSeg = true; rStart = y; }
-                rGap = 0;
-            } else {
-                if (rInSeg) {
-                    rGap++;
-                    if (rGap >= GAP_THRESHOLD) {
-                        rowSegments.push({ y: rStart, h: y - rGap - rStart + 1 });
-                        rInSeg = false; rGap = 0;
-                    }
-                }
-            }
-        }
-        if (rInSeg) rowSegments.push({ y: rStart, h: height - rStart - rGap });
-
-        if (rowSegments.length >= 2) {
-            const gridFrames = [];
-            for (const rowSeg of rowSegments) {
-                const rowColHasPixel = new Array(width).fill(false);
-                for (let y = rowSeg.y; y < rowSeg.y + rowSeg.h; y++) {
-                    for (let x = 0; x < width; x++) {
-                        if (data[(y * width + x) * 4 + 3] > 10) rowColHasPixel[x] = true;
-                    }
-                }
-                let cInSeg = false, cStart = 0, cGap = 0;
-                for (let x = 0; x < width; x++) {
-                    if (rowColHasPixel[x]) {
-                        if (!cInSeg) { cInSeg = true; cStart = x; }
-                        cGap = 0;
-                    } else {
-                        if (cInSeg) {
-                            cGap++;
-                            if (cGap >= GAP_THRESHOLD) {
-                                gridFrames.push({ x: cStart, y: rowSeg.y, w: x - cGap - cStart + 1, h: rowSeg.h });
-                                cInSeg = false; cGap = 0;
-                            }
-                        }
-                    }
-                }
-                if (cInSeg) gridFrames.push({ x: cStart, y: rowSeg.y, w: width - cStart - cGap, h: rowSeg.h });
-            }
-            if (gridFrames.length >= 4) {
-                frameCache[cacheKey] = gridFrames;
-                return gridFrames;
-            }
-        }
-    }
-
-    // Fallback: uniform 3x3 grid split for boss sprite
-    if (frames.length < 4) {
-        const fallback = [];
-        const cols = 3;
-        const rows = 3;
-        const sliceW = Math.floor(width / cols);
-        const sliceH = Math.floor(height / rows);
-        for (let r = 0; r < rows; r++) {
-            for (let c = 0; c < cols; c++) {
-                fallback.push({ x: c * sliceW, y: r * sliceH, w: sliceW, h: sliceH });
-            }
-        }
-        frames = fallback;
     }
 
     frameCache[cacheKey] = frames;
     return frames;
 }
 
-const SpriteBoss = ({ state = 'idle', size = 160 }) => {
+function findSpriteForName(name) {
+    if (!name) return null;
+    const lower = name.toLowerCase().trim();
+    // Exact match first
+    if (REWARD_SPRITES[lower]) return REWARD_SPRITES[lower];
+    // Partial match
+    for (const [key, value] of Object.entries(REWARD_SPRITES)) {
+        if (lower.includes(key) || key.includes(lower)) return value;
+    }
+    return null;
+}
+
+const SpriteReward = ({ name = '', size = 50 }) => {
     const canvasRef = useRef(null);
     const [processedSheet, setProcessedSheet] = useState(null);
     const [frames, setFrames] = useState(null);
     const frameIdxRef = useRef(0);
     const timerRef = useRef(null);
 
+    const spriteSrc = findSpriteForName(name);
+
     useEffect(() => {
+        if (!spriteSrc) return;
         const img = new Image();
         img.crossOrigin = 'anonymous';
         img.onload = () => {
             const processed = removeBackground(img);
-            const detected = detectFrames(processed);
+            const detected = detectFrames(processed, spriteSrc);
             setProcessedSheet(processed);
             setFrames(detected);
         };
-        img.src = bossDragonSprite;
-    }, []);
+        img.src = spriteSrc;
+    }, [spriteSrc]);
 
     useEffect(() => {
         if (!processedSheet || !frames || !canvasRef.current) return;
-
-        // Map states to frame ranges (6 frames: 2 idle, 2 attack, 2 defeated)
-        const third = Math.max(1, Math.floor(frames.length / 3));
-        const frameSets = {
-            idle: frames.slice(0, third),
-            attack: frames.slice(third, third * 2),
-            rage: frames.slice(third, third * 2),
-            defeated: frames.slice(third * 2),
-        };
-
-        const currentFrames = frameSets[state] || frameSets.idle;
-        if (currentFrames.length === 0) return;
+        if (frames.length === 0) return;
 
         const canvas = canvasRef.current;
         const ctx = canvas.getContext('2d');
-        const speed = state === 'attack' ? 150 : state === 'defeated' ? 350 : 300;
 
-        // Use GLOBAL max across ALL frames so all states are the same size
         const globalMaxW = Math.max(...frames.map(f => f.w));
         const globalMaxH = Math.max(...frames.map(f => f.h));
         canvas.width = globalMaxW;
         canvas.height = globalMaxH;
 
         const draw = () => {
-            const frame = currentFrames[frameIdxRef.current % currentFrames.length];
+            const frame = frames[frameIdxRef.current % frames.length];
             ctx.clearRect(0, 0, globalMaxW, globalMaxH);
             const dx = Math.floor((globalMaxW - frame.w) / 2);
             const dy = Math.floor((globalMaxH - frame.h) / 2);
@@ -243,33 +193,25 @@ const SpriteBoss = ({ state = 'idle', size = 160 }) => {
         draw();
 
         if (timerRef.current) clearInterval(timerRef.current);
-
-        if (state === 'defeated') {
-            timerRef.current = setInterval(() => {
-                if (frameIdxRef.current < currentFrames.length - 1) {
-                    frameIdxRef.current++;
-                    draw();
-                } else {
-                    clearInterval(timerRef.current);
-                }
-            }, speed);
-        } else {
-            timerRef.current = setInterval(() => {
-                frameIdxRef.current = (frameIdxRef.current + 1) % currentFrames.length;
-                draw();
-            }, speed);
-        }
+        timerRef.current = setInterval(() => {
+            frameIdxRef.current = (frameIdxRef.current + 1) % frames.length;
+            draw();
+        }, 350);
 
         return () => clearInterval(timerRef.current);
-    }, [processedSheet, frames, state]);
+    }, [processedSheet, frames]);
+
+    // If no matching sprite, fall back to nothing
+    if (!spriteSrc) return null;
 
     let displayW = size;
     let displayH = size;
     if (frames && frames.length > 0) {
-        const maxW = Math.max(...frames.map(f => f.w));
-        const maxH = Math.max(...frames.map(f => f.h));
-        const scale = size / maxW;
-        displayH = Math.round(maxH * scale);
+        const globalMaxW = Math.max(...frames.map(f => f.w));
+        const globalMaxH = Math.max(...frames.map(f => f.h));
+        const scale = Math.min(size / globalMaxW, size / globalMaxH);
+        displayW = Math.round(globalMaxW * scale);
+        displayH = Math.round(globalMaxH * scale);
     }
 
     return (
@@ -280,9 +222,10 @@ const SpriteBoss = ({ state = 'idle', size = 160 }) => {
                 height: `${displayH}px`,
                 imageRendering: 'pixelated',
                 display: 'block',
+                margin: '0 auto',
             }}
         />
     );
 };
 
-export default SpriteBoss;
+export default SpriteReward;

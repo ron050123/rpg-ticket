@@ -14,16 +14,10 @@ const HPBar = ({ boss }) => {
         <div className="nes-container is-dark with-title">
             <p className="title">BOSS: {boss.name}</p>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
-                {boss.image_url && (
-                    <img src={boss.image_url} alt="Boss" style={{ width: '64px', height: '64px', imageRendering: 'pixelated' }} />
-                )}
-
-                <div style={{ flex: 1 }}>
-                    <progress className={`nes-progress ${progressClass}`} value={boss.current_hp} max={boss.total_hp}></progress>
-                    <div style={{ textAlign: 'center' }}>
-                        HP: {boss.current_hp} / {boss.total_hp}
-                    </div>
+            <div>
+                <progress className={`nes-progress ${progressClass}`} value={boss.current_hp} max={boss.total_hp}></progress>
+                <div style={{ textAlign: 'center' }}>
+                    HP: {boss.current_hp} / {boss.total_hp}
                 </div>
             </div>
         </div>

@@ -4,6 +4,7 @@ import { api } from '../services/api';
 import HPBar from '../components/HPBar';
 import TaskCard from '../components/TaskCard';
 import BossArena from '../components/BossArena';
+import SpriteReward from '../components/SpriteReward';
 import { useAuth } from '../context/AuthContext';
 
 const socket = io('http://localhost:5322');
@@ -889,7 +890,8 @@ const BattleView = () => {
                                     {rewards.map(reward => (
                                         <div key={reward.id} className="nes-container is-centered with-title" style={{ position: 'relative' }}>
                                             <p className="title">{reward.name}</p>
-                                            {reward.image_url && <img src={reward.image_url} alt={reward.name} style={{ width: '50px', height: '50px', objectFit: 'contain' }} />}
+                                            <SpriteReward name={reward.name} size={50} />
+                                            {!['redbull', 'coffee', 'snacks', 'bao bun', 'baobun', 'bao'].some(k => reward.name.toLowerCase().includes(k)) && reward.image_url && <img src={reward.image_url} alt={reward.name} style={{ width: '50px', height: '50px', objectFit: 'contain' }} />}
                                             <p>{reward.cost} XP</p>
                                             {reward.description && <p style={{ fontSize: '0.8rem', color: '#666' }}>{reward.description}</p>}
 
