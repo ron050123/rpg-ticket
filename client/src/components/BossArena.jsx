@@ -1,9 +1,9 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import SpriteHero from './SpriteHero';
 import SpriteBoss from './SpriteBoss';
 import './BossArena.css';
 
-const BossArena = ({ boss, userClass }) => {
+const BossArena = ({ boss, userClass, tasks = [] }) => {
     // Memoize stars so they don't re-randomize on each render
     const stars = useMemo(() => Array.from({ length: 25 }).map((_, i) => ({
         key: i,
@@ -11,6 +11,22 @@ const BossArena = ({ boss, userClass }) => {
         top: `${Math.random() * 100}%`,
         delay: `${Math.random() * 3}s`,
     })), []);
+
+    // Track previous HP to detect hits
+    const prevHpRef = useRef(null);
+    const [isHurt, setIsHurt] = useState(false);
+
+    // Detect HP drops to trigger hurt animation
+    useEffect(() => {
+        if (!boss) return;
+        if (prevHpRef.current !== null && boss.current_hp < prevHpRef.current && boss.current_hp > 0) {
+            setIsHurt(true);
+            // Hurt lasts for the duration of the hurt animation (~600ms for 3 frames at 200ms)
+            const timer = setTimeout(() => setIsHurt(false), 700);
+            return () => clearTimeout(timer);
+        }
+        prevHpRef.current = boss.current_hp;
+    }, [boss?.current_hp]);
 
     if (!boss) {
         return (
@@ -35,8 +51,19 @@ const BossArena = ({ boss, userClass }) => {
     const isDefeated = boss.current_hp === 0;
     const isLowHP = hpPercent > 0 && hpPercent <= 30;
 
-    // Determine boss animation state
-    const bossState = isDefeated ? 'defeated' : isLowHP ? 'rage' : 'idle';
+    // Check if any quest/task is actively being worked on
+    const hasActiveQuests = tasks.some(t => t.boss_id === boss.id && t.status === 'IN_PROGRESS');
+
+    // Determine boss animation state:
+    // defeated > hurt > active (has quests in progress) > idle
+    let bossState = 'idle';
+    if (isDefeated) {
+        bossState = 'defeated';
+    } else if (isHurt) {
+        bossState = 'hurt';
+    } else if (hasActiveQuests) {
+        bossState = 'active';
+    }
 
     return (
         <div className={`boss-arena ${isDefeated ? 'boss-arena--defeated' : ''} ${isLowHP ? 'boss-arena--rage' : ''}`}>

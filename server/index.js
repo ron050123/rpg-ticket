@@ -30,6 +30,8 @@ app.use('/api/comments', require('./routes/comments'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/rewards', require('./routes/rewards'));
 app.use('/api/notifications', require('./routes/notifications'));
+app.use('/api/leaderboard', require('./routes/leaderboard'));
+app.use('/api/achievements', require('./routes/achievements'));
 
 // Socket.io connection
 io.on('connection', (socket) => {
@@ -56,6 +58,13 @@ async function startServer() {
         try {
             await sequelize.query("ALTER TABLE Comments ADD COLUMN type TEXT DEFAULT 'COMMENT'");
             console.log('Added missing type column to Comments.');
+        } catch (e) {
+            // Column already exists, ignore
+        }
+        // Manual migration: ensure Bosses.tier column exists
+        try {
+            await sequelize.query("ALTER TABLE Bosses ADD COLUMN tier TEXT DEFAULT 'Boss'");
+            console.log('Added missing tier column to Bosses.');
         } catch (e) {
             // Column already exists, ignore
         }

@@ -23,8 +23,13 @@ const Boss = sequelize.define('Boss', {
         allowNull: true // Optional for now, or default to NOW
     },
     deadline: {
-        type: DataTypes.DATEONLY,
+        type: DataTypes.STRING,
         allowNull: true
+    },
+    tier: {
+        type: DataTypes.STRING,
+        defaultValue: 'Boss',
+        allowNull: false
     }
 });
 

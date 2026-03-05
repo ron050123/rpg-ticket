@@ -100,3 +100,21 @@ button:focus-visible {
 .nes-checkbox.is-white+span::before {
   filter: invert(1);
 }
+
+/* Blink animation for overdue badges */
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0.3; }
+}
+
+/* Fade-in animation for level-up overlay */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px) scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}

@@ -50,7 +50,7 @@ router.get('/active', async (req, res) => {
 // Create Boss (Admin Only)
 router.post('/', requireAdmin, async (req, res) => {
     try {
-        const { name, image_url, tasks, start_date, deadline } = req.body;
+        const { name, image_url, tasks, start_date, deadline, tier } = req.body;
 
         // Calculate initial HP from tasks
         let calculatedHp = 0;
@@ -68,7 +68,8 @@ router.post('/', requireAdmin, async (req, res) => {
             current_hp: calculatedHp,
             image_url,
             start_date,
-            deadline
+            deadline,
+            tier: tier || 'Boss'
         });
 
         if (tasks && Array.isArray(tasks) && tasks.length > 0) {
@@ -110,7 +111,7 @@ router.post('/', requireAdmin, async (req, res) => {
 // Update Boss (Admin Only)
 router.put('/:id', requireAdmin, async (req, res) => {
     try {
-        const { name, total_hp, current_hp, image_url, start_date, deadline } = req.body;
+        const { name, total_hp, current_hp, image_url, start_date, deadline, tier } = req.body;
         const boss = await Boss.findByPk(req.params.id);
 
         if (!boss) return res.status(404).json({ message: 'Boss not found' });
@@ -121,6 +122,7 @@ router.put('/:id', requireAdmin, async (req, res) => {
         if (image_url !== undefined) boss.image_url = image_url;
         if (start_date !== undefined) boss.start_date = start_date;
         if (deadline !== undefined) boss.deadline = deadline;
+        if (tier !== undefined) boss.tier = tier;
 
         await boss.save();
         req.io.emit('boss_updated', boss);

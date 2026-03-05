@@ -1,9 +1,10 @@
 const express = require('express');
 const { Reward } = require('../models');
+const { verifyToken, requireAdmin } = require('../middleware/auth');
 const router = express.Router();
 
-// Get all rewards
-router.get('/', async (req, res) => {
+// Get all rewards (authenticated)
+router.get('/', verifyToken, async (req, res) => {
     try {
         const rewards = await Reward.findAll();
         res.json(rewards);
@@ -12,8 +13,8 @@ router.get('/', async (req, res) => {
     }
 });
 
-// Create a new reward
-router.post('/', async (req, res) => {
+// Create a new reward (admin only)
+router.post('/', requireAdmin, async (req, res) => {
     try {
         const { name, cost, description, image_url } = req.body;
         if (!name || cost === undefined) {
@@ -26,8 +27,8 @@ router.post('/', async (req, res) => {
     }
 });
 
-// Update a reward
-router.put('/:id', async (req, res) => {
+// Update a reward (admin only)
+router.put('/:id', requireAdmin, async (req, res) => {
     try {
         const { id } = req.params;
         const { name, cost, description, image_url } = req.body;
@@ -42,8 +43,8 @@ router.put('/:id', async (req, res) => {
     }
 });
 
-// Delete a reward
-router.delete('/:id', async (req, res) => {
+// Delete a reward (admin only)
+router.delete('/:id', requireAdmin, async (req, res) => {
     try {
         const { id } = req.params;
         const reward = await Reward.findByPk(id);

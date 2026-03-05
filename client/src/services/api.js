@@ -1,4 +1,4 @@
-const API_URL = 'http://localhost:5322/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5322/api';
 
 const getHeaders = () => {
     const token = localStorage.getItem('token');
@@ -51,11 +51,7 @@ export const api = {
         if (!res.ok) throw await res.json();
         return res.json();
     },
-    getAllBosses: async () => {
-        const res = await fetch(`${API_URL}/bosses`, { headers: getHeaders() });
-        if (!res.ok) throw await res.json();
-        return res.json();
-    },
+
     updateBoss: async (id, data) => {
         const res = await fetch(`${API_URL}/bosses/${id}`, {
             method: 'PUT',
@@ -179,6 +175,24 @@ export const api = {
             method: 'DELETE',
             headers: getHeaders()
         });
+        if (!res.ok) throw await res.json();
+        return res.json();
+    },
+    // Leaderboard
+    getLeaderboard: async () => {
+        const res = await fetch(`${API_URL}/leaderboard`, { headers: getHeaders() });
+        if (!res.ok) throw await res.json();
+        return res.json();
+    },
+    // User Stats
+    getUserStats: async () => {
+        const res = await fetch(`${API_URL}/users/stats`, { headers: getHeaders() });
+        if (!res.ok) throw await res.json();
+        return res.json();
+    },
+    // Achievements
+    getAchievements: async () => {
+        const res = await fetch(`${API_URL}/achievements`, { headers: getHeaders() });
         if (!res.ok) throw await res.json();
         return res.json();
     }

@@ -1,275 +1,159 @@
-import React, { useRef, useEffect, useState } from 'react';
-import bossDragonSprite from '../assets/boss_dragon_sprite.png';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
+import bossIdle from '../assets/boss_idle.png';
+import bossAttack from '../assets/boss_attack.png';
+import bossDeath from '../assets/boss_death.png';
+import bossHurt from '../assets/boss_hurt.png';
+import bossFlying from '../assets/boss_flying.png';
 
 /*
-  Boss sprite with auto-frame-detection.
-  Detects character frames automatically from non-uniform sprite sheets.
+  Boss sprite with animation state machine.
+  States:
+    - idle:     plays IDLE loop (no quest active)
+    - active:   cycles FLYING → ATTACK → FLYING → ATTACK ... (quest in progress)
+    - hurt:     plays HURT once, then returns to active cycle
+    - defeated: plays DEATH once, stops on last frame
 */
 
-const processedCache = {};
+const SHEETS = {
+    idle:    { src: bossIdle,   frames: 4, speed: 250 },
+    flying:  { src: bossFlying, frames: 4, speed: 200 },
+    attack:  { src: bossAttack, frames: 8, speed: 120 },
+    hurt:    { src: bossHurt,   frames: 3, speed: 200 },
+    death:   { src: bossDeath,  frames: 8, speed: 200 },
+};
 
-function removeBackground(img, tolerance = 35) {
-    const cacheKey = img.src;
-    if (processedCache[cacheKey]) return processedCache[cacheKey];
-
-    const canvas = document.createElement('canvas');
-    canvas.width = img.naturalWidth;
-    canvas.height = img.naturalHeight;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(img, 0, 0);
-
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const data = imageData.data;
-
-    const getPixel = (x, y) => {
-        const i = (y * canvas.width + x) * 4;
-        return [data[i], data[i + 1], data[i + 2]];
-    };
-    const corners = [
-        getPixel(1, 1),
-        getPixel(canvas.width - 2, 1),
-        getPixel(1, canvas.height - 2),
-        getPixel(canvas.width - 2, canvas.height - 2),
-    ];
-    const bgR = Math.round(corners.reduce((s, c) => s + c[0], 0) / 4);
-    const bgG = Math.round(corners.reduce((s, c) => s + c[1], 0) / 4);
-    const bgB = Math.round(corners.reduce((s, c) => s + c[2], 0) / 4);
-
-    for (let i = 0; i < data.length; i += 4) {
-        const dr = Math.abs(data[i] - bgR);
-        const dg = Math.abs(data[i + 1] - bgG);
-        const db = Math.abs(data[i + 2] - bgB);
-        if (dr <= tolerance && dg <= tolerance && db <= tolerance) {
-            data[i + 3] = 0;
-        }
-    }
-
-    ctx.putImageData(imageData, 0, 0);
-    processedCache[cacheKey] = canvas;
-    return canvas;
-}
-
-/* ---------- auto-detect frame bounding boxes ---------- */
-const frameCache = {};
-
-function detectFrames(canvas) {
-    const cacheKey = 'boss_' + canvas.width + '_' + canvas.height;
-    if (frameCache[cacheKey]) return frameCache[cacheKey];
-
-    const ctx = canvas.getContext('2d');
-    const { width, height } = canvas;
-    const imageData = ctx.getImageData(0, 0, width, height);
-    const data = imageData.data;
-
-    const colHasPixel = new Array(width).fill(false);
-    let minY = height, maxY = 0;
-
-    for (let y = 0; y < height; y++) {
-        for (let x = 0; x < width; x++) {
-            const alpha = data[(y * width + x) * 4 + 3];
-            if (alpha > 10) {
-                colHasPixel[x] = true;
-                if (y < minY) minY = y;
-                if (y > maxY) maxY = y;
-            }
-        }
-    }
-
-    const segments = [];
-    let inSeg = false;
-    let start = 0;
-    const GAP_THRESHOLD = 5;
-    let gapCount = 0;
-
-    for (let x = 0; x < width; x++) {
-        if (colHasPixel[x]) {
-            if (!inSeg) { inSeg = true; start = x; }
-            gapCount = 0;
-        } else {
-            if (inSeg) {
-                gapCount++;
-                if (gapCount >= GAP_THRESHOLD) {
-                    segments.push({ x: start, w: x - gapCount - start + 1 });
-                    inSeg = false; gapCount = 0;
-                }
-            }
-        }
-    }
-    if (inSeg) segments.push({ x: start, w: width - start - gapCount });
-
-    const padY = 2;
-    const cropMinY = Math.max(0, minY - padY);
-    const cropMaxY = Math.min(height - 1, maxY + padY);
-    const cropH = cropMaxY - cropMinY + 1;
-
-    let frames = segments.map(seg => ({
-        x: Math.max(0, seg.x - 1),
-        y: cropMinY,
-        w: Math.min(width - seg.x + 1, seg.w + 2),
-        h: cropH,
-    }));
-
-    // If fewer than 4, try grid detection (rows x cols)
-    if (frames.length < 4) {
-        const rowHasPixel = new Array(height).fill(false);
-        for (let y = 0; y < height; y++) {
-            for (let x = 0; x < width; x++) {
-                if (data[(y * width + x) * 4 + 3] > 10) { rowHasPixel[y] = true; break; }
-            }
-        }
-        const rowSegments = [];
-        let rInSeg = false, rStart = 0, rGap = 0;
-        for (let y = 0; y < height; y++) {
-            if (rowHasPixel[y]) {
-                if (!rInSeg) { rInSeg = true; rStart = y; }
-                rGap = 0;
-            } else {
-                if (rInSeg) {
-                    rGap++;
-                    if (rGap >= GAP_THRESHOLD) {
-                        rowSegments.push({ y: rStart, h: y - rGap - rStart + 1 });
-                        rInSeg = false; rGap = 0;
-                    }
-                }
-            }
-        }
-        if (rInSeg) rowSegments.push({ y: rStart, h: height - rStart - rGap });
-
-        if (rowSegments.length >= 2) {
-            const gridFrames = [];
-            for (const rowSeg of rowSegments) {
-                const rowColHasPixel = new Array(width).fill(false);
-                for (let y = rowSeg.y; y < rowSeg.y + rowSeg.h; y++) {
-                    for (let x = 0; x < width; x++) {
-                        if (data[(y * width + x) * 4 + 3] > 10) rowColHasPixel[x] = true;
-                    }
-                }
-                let cInSeg = false, cStart = 0, cGap = 0;
-                for (let x = 0; x < width; x++) {
-                    if (rowColHasPixel[x]) {
-                        if (!cInSeg) { cInSeg = true; cStart = x; }
-                        cGap = 0;
-                    } else {
-                        if (cInSeg) {
-                            cGap++;
-                            if (cGap >= GAP_THRESHOLD) {
-                                gridFrames.push({ x: cStart, y: rowSeg.y, w: x - cGap - cStart + 1, h: rowSeg.h });
-                                cInSeg = false; cGap = 0;
-                            }
-                        }
-                    }
-                }
-                if (cInSeg) gridFrames.push({ x: cStart, y: rowSeg.y, w: width - cStart - cGap, h: rowSeg.h });
-            }
-            if (gridFrames.length >= 4) {
-                frameCache[cacheKey] = gridFrames;
-                return gridFrames;
-            }
-        }
-    }
-
-    // Fallback: uniform 3x3 grid split for boss sprite
-    if (frames.length < 4) {
-        const fallback = [];
-        const cols = 3;
-        const rows = 3;
-        const sliceW = Math.floor(width / cols);
-        const sliceH = Math.floor(height / rows);
-        for (let r = 0; r < rows; r++) {
-            for (let c = 0; c < cols; c++) {
-                fallback.push({ x: c * sliceW, y: r * sliceH, w: sliceW, h: sliceH });
-            }
-        }
-        frames = fallback;
-    }
-
-    frameCache[cacheKey] = frames;
-    return frames;
+// Cache loaded images
+const imageCache = {};
+function loadImage(src) {
+    if (imageCache[src]) return Promise.resolve(imageCache[src]);
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => { imageCache[src] = img; resolve(img); };
+        img.onerror = () => resolve(null);
+        img.src = src;
+    });
 }
 
 const SpriteBoss = ({ state = 'idle', size = 160 }) => {
     const canvasRef = useRef(null);
-    const [processedSheet, setProcessedSheet] = useState(null);
-    const [frames, setFrames] = useState(null);
     const frameIdxRef = useRef(0);
     const timerRef = useRef(null);
+    // Internal animation key: which sheet is currently playing
+    const [animKey, setAnimKey] = useState('idle');
+    // Track the active cycle position: 'flying' or 'attack'
+    const cycleRef = useRef('flying');
+    // Loaded image data for the current animation
+    const [sheetData, setSheetData] = useState(null);
 
+    // Determine what internal animation to play based on the external state
     useEffect(() => {
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = () => {
-            const processed = removeBackground(img);
-            const detected = detectFrames(processed);
-            setProcessedSheet(processed);
-            setFrames(detected);
-        };
-        img.src = bossDragonSprite;
-    }, []);
+        if (state === 'defeated') {
+            setAnimKey('death');
+        } else if (state === 'hurt') {
+            setAnimKey('hurt');
+        } else if (state === 'active') {
+            // Start the flying/attack cycle
+            cycleRef.current = 'flying';
+            setAnimKey('flying');
+        } else {
+            setAnimKey('idle');
+        }
+    }, [state]);
 
+    // Load the sprite sheet when animKey changes
     useEffect(() => {
-        if (!processedSheet || !frames || !canvasRef.current) return;
+        const sheet = SHEETS[animKey];
+        if (!sheet) return;
+        let cancelled = false;
+        loadImage(sheet.src).then(img => {
+            if (!cancelled && img) {
+                setSheetData({
+                    img,
+                    frameW: Math.floor(img.naturalWidth / sheet.frames),
+                    frameH: img.naturalHeight,
+                    frameCount: sheet.frames,
+                    speed: sheet.speed,
+                    key: animKey,
+                });
+            }
+        });
+        return () => { cancelled = true; };
+    }, [animKey]);
 
-        // Map states to frame ranges (6 frames: 2 idle, 2 attack, 2 defeated)
-        const third = Math.max(1, Math.floor(frames.length / 3));
-        const frameSets = {
-            idle: frames.slice(0, third),
-            attack: frames.slice(third, third * 2),
-            rage: frames.slice(third, third * 2),
-            defeated: frames.slice(third * 2),
-        };
+    // Callback: advance to next animation in cycle
+    const onAnimComplete = useCallback(() => {
+        if (state === 'hurt') {
+            // After hurt, go back to the active cycle
+            cycleRef.current = 'flying';
+            setAnimKey('flying');
+        } else if (state === 'active') {
+            // Toggle between flying and attack
+            if (cycleRef.current === 'flying') {
+                cycleRef.current = 'attack';
+                setAnimKey('attack');
+            } else {
+                cycleRef.current = 'flying';
+                setAnimKey('flying');
+            }
+        }
+        // idle and defeated don't cycle
+    }, [state]);
 
-        const currentFrames = frameSets[state] || frameSets.idle;
-        if (currentFrames.length === 0) return;
+    // Animate the current sheet
+    useEffect(() => {
+        if (!sheetData || !canvasRef.current) return;
 
+        const { img, frameW, frameH, frameCount, speed, key } = sheetData;
         const canvas = canvasRef.current;
+        canvas.width = frameW;
+        canvas.height = frameH;
         const ctx = canvas.getContext('2d');
-        const speed = state === 'attack' ? 150 : state === 'defeated' ? 350 : 300;
-
-        // Use GLOBAL max across ALL frames so all states are the same size
-        const globalMaxW = Math.max(...frames.map(f => f.w));
-        const globalMaxH = Math.max(...frames.map(f => f.h));
-        canvas.width = globalMaxW;
-        canvas.height = globalMaxH;
-
-        const draw = () => {
-            const frame = currentFrames[frameIdxRef.current % currentFrames.length];
-            ctx.clearRect(0, 0, globalMaxW, globalMaxH);
-            const dx = Math.floor((globalMaxW - frame.w) / 2);
-            const dy = Math.floor((globalMaxH - frame.h) / 2);
-            ctx.drawImage(processedSheet, frame.x, frame.y, frame.w, frame.h, dx, dy, frame.w, frame.h);
-        };
 
         frameIdxRef.current = 0;
-        draw();
 
+        const draw = () => {
+            const idx = frameIdxRef.current % frameCount;
+            ctx.clearRect(0, 0, frameW, frameH);
+            ctx.drawImage(img, idx * frameW, 0, frameW, frameH, 0, 0, frameW, frameH);
+        };
+
+        draw();
         if (timerRef.current) clearInterval(timerRef.current);
 
-        if (state === 'defeated') {
+        const isOneShot = key === 'death' || key === 'hurt' ||
+            (state === 'active' && (key === 'flying' || key === 'attack'));
+
+        if (isOneShot) {
+            // Play once through, then trigger callback
             timerRef.current = setInterval(() => {
-                if (frameIdxRef.current < currentFrames.length - 1) {
+                if (frameIdxRef.current < frameCount - 1) {
                     frameIdxRef.current++;
                     draw();
                 } else {
                     clearInterval(timerRef.current);
+                    if (key !== 'death') {
+                        onAnimComplete();
+                    }
                 }
             }, speed);
         } else {
+            // Loop (idle)
             timerRef.current = setInterval(() => {
-                frameIdxRef.current = (frameIdxRef.current + 1) % currentFrames.length;
+                frameIdxRef.current = (frameIdxRef.current + 1) % frameCount;
                 draw();
             }, speed);
         }
 
         return () => clearInterval(timerRef.current);
-    }, [processedSheet, frames, state]);
+    }, [sheetData, state, onAnimComplete]);
 
+    // Calculate display dimensions
     let displayW = size;
     let displayH = size;
-    if (frames && frames.length > 0) {
-        const maxW = Math.max(...frames.map(f => f.w));
-        const maxH = Math.max(...frames.map(f => f.h));
-        const scale = size / maxW;
-        displayH = Math.round(maxH * scale);
+    if (sheetData) {
+        const scale = size / sheetData.frameW;
+        displayH = Math.round(sheetData.frameH * scale);
     }
 
     return (

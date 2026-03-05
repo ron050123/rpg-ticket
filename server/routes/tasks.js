@@ -1,6 +1,7 @@
 const express = require('express');
 const { Task, Boss, User, Comment, Notification } = require('../models');
 const { requireAdmin, verifyToken } = require('../middleware/auth');
+const { checkAchievements } = require('./achievements');
 
 const router = express.Router();
 
@@ -354,13 +355,29 @@ router.put('/:id', verifyToken, async (req, res) => {
                     if (user.class === 'Cleric') xpGain = Math.floor(xpGain * 1.2);
 
                     user.xp += xpGain;
+                    const oldLevel = user.level;
                     // Level up logic (simple)
                     if (user.xp >= user.level * 100) {
                         user.level += 1;
-                        user.xp = user.xp - (user.level - 1) * 100; // Carry over overflow? Or just reset? Let's keep simple
+                        user.xp = user.xp - (user.level - 1) * 100;
                     }
                     await user.save();
+
+                    // Emit level_up if level changed
+                    if (user.level > oldLevel) {
+                        req.io.emit('level_up', {
+                            userId: user.id,
+                            username: user.username,
+                            newLevel: user.level,
+                            newXp: user.xp
+                        });
+                    }
                 }
+            }
+
+            // Check achievements for all assignees
+            for (const assignee of currentAssignees) {
+                checkAchievements(assignee.id, req.io);
             }
 
             // Auto-create APPROVAL comment
@@ -457,7 +474,7 @@ router.delete('/:id', requireAdmin, async (req, res) => {
         await task.destroy();
 
         // Emit deletion event
-        req.io.emit('task_deleted', { taskId });
+        req.io.emit('task_deleted', { taskId: parseInt(taskId) });
 
         res.json({ message: 'Task deleted successfully' });
     } catch (error) {

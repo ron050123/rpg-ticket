@@ -7,7 +7,7 @@ import BossArena from '../components/BossArena';
 import SpriteReward from '../components/SpriteReward';
 import { useAuth } from '../context/AuthContext';
 
-const socket = io('http://localhost:5322');
+const socket = io(import.meta.env.VITE_SOCKET_URL || 'http://localhost:5322');
 
 const BattleView = () => {
     const { user, updateUser } = useAuth();
@@ -27,8 +27,27 @@ const BattleView = () => {
     const [victoryDismissed, setVictoryDismissed] = useState(false);
 
     const [allBosses, setAllBosses] = useState([]);
-    const [selectedBossId, setSelectedBossId] = useState(null); // Track which boss is selected
-    const [activeTab, setActiveTab] = useState('battle'); // 'battle' | 'timeline'
+    const [selectedBossId, setSelectedBossId] = useState(null);
+    const [activeTab, setActiveTab] = useState('battle');
+
+    // Quest Filtering
+    const [searchText, setSearchText] = useState('');
+    const [filterPriority, setFilterPriority] = useState('');
+    const [filterLabel, setFilterLabel] = useState('');
+    const [filterAssignee, setFilterAssignee] = useState('');
+    const [showFilters, setShowFilters] = useState(false);
+
+    // Leaderboard
+    const [showLeaderboard, setShowLeaderboard] = useState(false);
+    const [leaderboardData, setLeaderboardData] = useState([]);
+
+    // Profile
+    const [showProfile, setShowProfile] = useState(false);
+    const [profileStats, setProfileStats] = useState(null);
+
+    // Level-up celebration
+    const [showLevelUp, setShowLevelUp] = useState(false);
+    const [levelUpInfo, setLevelUpInfo] = useState(null);
 
     // Notification system
     const [notifications, setNotifications] = useState([]);
@@ -60,6 +79,7 @@ const BattleView = () => {
         image_url: '',
         start_date: '',
         deadline: '',
+        tier: 'Boss',
         tasks: []
     });
 
@@ -171,6 +191,15 @@ const BattleView = () => {
             }
         });
 
+        socket.on('level_up', (data) => {
+            if (data.userId === user.id) {
+                setLevelUpInfo(data);
+                setShowLevelUp(true);
+                updateUser({ ...user, level: data.newLevel, xp: data.newXp });
+                setTimeout(() => setShowLevelUp(false), 5000);
+            }
+        });
+
         return () => {
             socket.off('connect');
             socket.off('boss_updated');
@@ -179,6 +208,7 @@ const BattleView = () => {
             socket.off('task_deleted');
             socket.off('boss_created');
             socket.off('boss_deleted');
+            socket.off('level_up');
             socket.off('damage_dealt');
             socket.off('friend_joined');
             socket.off('reward_redeemed');
@@ -191,7 +221,7 @@ const BattleView = () => {
     const loadData = async () => {
         try {
             // Fetch all bosses
-            const bossesList = await api.getAllBosses();
+            const bossesList = await api.getBosses();
             setAllBosses(bossesList || []);
 
             // Set the first boss as active, or keep the currently selected one
@@ -475,20 +505,24 @@ const BattleView = () => {
     };
 
     const visibleTasks = tasks.filter(t => {
-        // If a boss is selected, only show tasks for that boss
+        // Boss filter
         if (selectedBossId) {
-            return t.boss_id === selectedBossId;
+            if (t.boss_id !== selectedBossId) return false;
+        } else {
+            if (t.boss_id !== null) return false;
         }
-        // If no boss is selected, show tasks with no boss (general quests)?
-        // Or show nothing? Showing orphaned tasks is confusing if not intended.
-        // Let's only show orphaned tasks if specifically requested or if they possess a specific flag?
-        // Current behavior: Show orphaned tasks.
-        // User asked: "why is it that when aaa is deleted all of these tasks popped up?"
-        // This implies they didn't expect it.
-        // Let's hide them for now unless they are specifically "General Quests" (which we don't have a clear concept for yet).
-        // OR, better: Only show them if we are in a "No Boss" state explicitly.
-        // But since we are auto-selecting bosses now, this might be less of an issue.
-        return t.boss_id === null;
+        // Search text
+        if (searchText && !t.title.toLowerCase().includes(searchText.toLowerCase())) return false;
+        // Priority filter
+        if (filterPriority && t.priority !== filterPriority) return false;
+        // Label filter
+        if (filterLabel && t.label !== filterLabel) return false;
+        // Assignee filter
+        if (filterAssignee) {
+            const fId = parseInt(filterAssignee);
+            if (!t.Assignees || !t.Assignees.some(a => a.id === fId)) return false;
+        }
+        return true;
     });
 
     const todoTasks = visibleTasks.filter(t => t.status === 'TODO');
@@ -497,11 +531,31 @@ const BattleView = () => {
 
     const isAdmin = user.role === 'ADMIN';
 
+    // XP progress calculation
+    const xpForNextLevel = user.level * 100;
+    const xpProgress = Math.min((user.xp / xpForNextLevel) * 100, 100);
+
+    // Leaderboard loader
+    const loadLeaderboard = async () => {
+        try {
+            const data = await api.getLeaderboard();
+            setLeaderboardData(data);
+        } catch (e) { console.error('Leaderboard error:', e); }
+    };
+
+    // Profile loader
+    const loadProfile = async () => {
+        try {
+            const data = await api.getUserStats();
+            setProfileStats(data);
+        } catch (e) { console.error('Profile error:', e); }
+    };
+
     return (
         <div style={{ position: 'relative', minHeight: '100vh' }}>
             {/* FULL-SCREEN BOSS ARENA BACKGROUND */}
             <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 0 }}>
-                <BossArena boss={boss} userClass={user?.class} />
+                <BossArena boss={boss} userClass={user?.class} tasks={tasks} />
             </div>
 
             {notification && (
@@ -517,13 +571,22 @@ const BattleView = () => {
 
             {/* CONTENT OVERLAY */}
             <div style={{ position: 'relative', zIndex: 1, maxWidth: '1650px', margin: '0 auto', padding: '0 15px', paddingTop: '60vh' }}>
-                {/* Player Info */}
+                {/* Player Info + XP Bar */}
                 <div style={{ marginBottom: '1rem', paddingTop: '0.5rem' }}>
-                    <span className="nes-text is-primary">Player: {user.username}</span>
-                    {isAdmin && <span className="nes-text is-error" style={{ marginLeft: '1rem' }}>(GM)</span>}
-                    <span className="nes-text is-warning" style={{ marginLeft: '1rem' }}>Lvl {user.level}</span>
-                    <span className="nes-text is-success" style={{ marginLeft: '1rem' }}>{user.class}</span>
-                    <span className="nes-text" style={{ marginLeft: '1rem', color: '#fff' }}>XP: {user.xp}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
+                        <span className="nes-text is-primary" style={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={() => { loadProfile(); setShowProfile(true); }}>Player: {user.username}</span>
+                        {isAdmin && <span className="nes-text is-error">(GM)</span>}
+                        <span className="nes-text is-warning">Lvl {user.level}</span>
+                        <span className="nes-text is-success">{user.class}</span>
+                    </div>
+                    {/* XP Progress Bar */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', maxWidth: '400px' }}>
+                        <span style={{ color: '#aaa', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>XP</span>
+                        <div style={{ flex: 1, height: '14px', backgroundColor: '#333', border: '2px solid #555', borderRadius: '2px', overflow: 'hidden', position: 'relative' }}>
+                            <div style={{ width: `${xpProgress}%`, height: '100%', backgroundColor: '#92cc41', transition: 'width 0.5s ease' }} />
+                        </div>
+                        <span style={{ color: '#aaa', fontSize: '0.65rem', whiteSpace: 'nowrap' }}>{user.xp}/{xpForNextLevel}</span>
+                    </div>
                 </div>
 
                 {/* Tabs & Actions */}
@@ -534,6 +597,7 @@ const BattleView = () => {
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                         <button className="nes-btn is-warning" onClick={() => setShowRewards(true)}>Rewards</button>
+                        <button className="nes-btn" onClick={() => { loadLeaderboard(); setShowLeaderboard(true); }} style={{ fontSize: '0.85rem' }}>🏆</button>
                         {/* Notification Bell */}
                         <div style={{ position: 'relative' }}>
                             <button
@@ -622,9 +686,9 @@ const BattleView = () => {
                                         {allBosses.map(b => (
                                             <button
                                                 key={b.id}
-                                                className={`nes-btn ${selectedBossId === b.id ? 'is-primary' : 'is-disabled'}`}
+                                                className={`nes-btn ${selectedBossId === b.id ? 'is-primary' : ''}`}
                                                 onClick={() => { setSelectedBossId(b.id); setBoss(b); }}
-                                                style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem' }}
+                                                style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem', cursor: 'pointer', opacity: selectedBossId === b.id ? 1 : 0.6 }}
                                             >
                                                 {b.name}
                                             </button>
@@ -653,6 +717,54 @@ const BattleView = () => {
                                                 <button className="nes-btn is-warning" onClick={handleEditBossClick} style={{ fontSize: '0.75rem' }}>Edit Boss</button>
                                                 <button className="nes-btn is-error" onClick={handleDeleteBoss} style={{ fontSize: '0.75rem' }}>Delete Boss</button>
                                             </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Quest Filter Bar */}
+                            <div style={{ marginBottom: '0.75rem' }}>
+                                <button className="nes-btn is-small" onClick={() => setShowFilters(!showFilters)} style={{ fontSize: '0.7rem', marginBottom: showFilters ? '0.5rem' : 0 }}>
+                                    {showFilters ? '▲ Hide Filters' : '▼ Filter Quests'}
+                                    {(searchText || filterPriority || filterLabel || filterAssignee) && <span style={{ color: '#92cc41' }}> •</span>}
+                                </button>
+                                {showFilters && (
+                                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', padding: '0.5rem', backgroundColor: 'rgba(10,10,46,0.7)', borderRadius: '4px', border: '2px solid #4a4a8a' }}>
+                                        <input
+                                            className="nes-input is-small"
+                                            placeholder="Search quests..."
+                                            value={searchText}
+                                            onChange={e => setSearchText(e.target.value)}
+                                            style={{ maxWidth: '200px', backgroundColor: '#222', color: '#fff', borderColor: '#555', fontSize: '0.7rem' }}
+                                        />
+                                        <div className="nes-select is-small" style={{ maxWidth: '130px' }}>
+                                            <select value={filterPriority} onChange={e => setFilterPriority(e.target.value)} style={{ backgroundColor: '#222', color: '#fff', borderColor: '#555', fontSize: '0.7rem' }}>
+                                                <option value="">All Priority</option>
+                                                <option value="HIGH">High</option>
+                                                <option value="MEDIUM">Medium</option>
+                                                <option value="LOW">Low</option>
+                                            </select>
+                                        </div>
+                                        <div className="nes-select is-small" style={{ maxWidth: '140px' }}>
+                                            <select value={filterLabel} onChange={e => setFilterLabel(e.target.value)} style={{ backgroundColor: '#222', color: '#fff', borderColor: '#555', fontSize: '0.7rem' }}>
+                                                <option value="">All Labels</option>
+                                                <option value="FEATURE">Feature</option>
+                                                <option value="BUG">Bug</option>
+                                                <option value="ENHANCEMENT">Enhancement</option>
+                                            </select>
+                                        </div>
+                                        <div className="nes-select is-small" style={{ maxWidth: '150px' }}>
+                                            <select value={filterAssignee} onChange={e => setFilterAssignee(e.target.value)} style={{ backgroundColor: '#222', color: '#fff', borderColor: '#555', fontSize: '0.7rem' }}>
+                                                <option value="">All Heroes</option>
+                                                {users.map(u => (
+                                                    <option key={u.id} value={u.id}>{u.username}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        {(searchText || filterPriority || filterLabel || filterAssignee) && (
+                                            <button className="nes-btn is-error is-small" onClick={() => { setSearchText(''); setFilterPriority(''); setFilterLabel(''); setFilterAssignee(''); }} style={{ fontSize: '0.65rem', padding: '2px 8px' }}>
+                                                Clear
+                                            </button>
                                         )}
                                     </div>
                                 )}
@@ -1106,6 +1218,17 @@ const BattleView = () => {
                                         <input className="nes-input" value={newBoss.image_url} onChange={e => setNewBoss({ ...newBoss, image_url: e.target.value })} placeholder="https://..." />
                                     </div>
 
+                                    <div className="nes-field">
+                                        <label>Tier</label>
+                                        <div className="nes-select">
+                                            <select value={newBoss.tier} onChange={e => setNewBoss({ ...newBoss, tier: e.target.value })}>
+                                                <option value="Mini-Boss">Mini-Boss</option>
+                                                <option value="Boss">Boss</option>
+                                                <option value="Raid Boss">Raid Boss</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
                                     <div style={{ marginTop: '1rem', borderTop: '2px dashed #000', paddingTop: '1rem' }}>
                                         <h3>Initial Quests</h3>
                                         <p style={{ fontSize: '0.8rem' }}>Add quests to define the Boss's Total HP.</p>
@@ -1343,35 +1466,26 @@ const BattleView = () => {
                                 <p style={{ borderBottom: '2px solid #fff', paddingBottom: '0.5rem' }}>Heroes of the Realm:</p>
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
                                     {(() => {
-                                        // Get all tasks for this boss (all contributed to defeating it)
                                         const bossTasks = tasks.filter(t => t.boss_id === boss.id);
                                         const contributorIds = new Set();
-
                                         bossTasks.forEach(t => {
                                             if (t.Assignees && Array.isArray(t.Assignees)) {
                                                 t.Assignees.forEach(u => contributorIds.add(u.id));
                                             }
                                             if (t.assigned_to) contributorIds.add(t.assigned_to);
                                         });
-
                                         if (contributorIds.size === 0) {
-                                            // Fallback: show all non-admin users if no specific assignees found
                                             const allHeroes = users.filter(u => u.role !== 'ADMIN');
                                             if (allHeroes.length === 0) return <p>No specific heroes recorded.</p>;
                                             return allHeroes.map(u => (
-                                                <span key={u.id} className="nes-badge">
-                                                    <span className="is-warning">{u.username}</span>
-                                                </span>
+                                                <span key={u.id} className="nes-badge"><span className="is-warning">{u.username}</span></span>
                                             ));
                                         }
-
                                         return Array.from(contributorIds).map(id => {
                                             const u = users.find(user => user.id === id);
                                             if (!u) return null;
                                             return (
-                                                <span key={u.id} className="nes-badge">
-                                                    <span className="is-warning">{u.username}</span>
-                                                </span>
+                                                <span key={u.id} className="nes-badge"><span className="is-warning">{u.username}</span></span>
                                             );
                                         });
                                     })()}
@@ -1379,17 +1493,126 @@ const BattleView = () => {
                             </div>
 
                             <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', marginTop: '2rem' }}>
-                                <button className="nes-btn" onClick={() => {
-                                    setShowVictoryPopup(false);
-                                    setVictoryDismissed(true);
-                                }}>Close</button>
+                                <button className="nes-btn" onClick={() => { setShowVictoryPopup(false); setVictoryDismissed(true); }}>Close</button>
                                 {isAdmin && (
-                                    <button className="nes-btn is-error" onClick={() => {
-                                        handleDeleteBoss();
-                                        // No need to close explicitly as deleting boss triggers null boss state
-                                    }}>Delete Boss</button>
+                                    <button className="nes-btn is-error" onClick={() => handleDeleteBoss()}>Delete Boss</button>
                                 )}
                             </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Leaderboard Modal */}
+                {showLeaderboard && (
+                    <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 200 }}>
+                        <div className="nes-container is-rounded is-dark" style={{ backgroundColor: '#212529', maxWidth: '700px', width: '90%', maxHeight: '90vh', border: '4px solid #F7D51D', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.75rem', borderBottom: '2px solid #555', flexShrink: 0 }}>
+                                <h2 style={{ color: '#F7D51D', margin: 0 }}>🏆 Leaderboard</h2>
+                                <button className="nes-btn is-error" onClick={() => setShowLeaderboard(false)}>X</button>
+                            </div>
+                            <div style={{ overflowY: 'auto', flex: 1, paddingTop: '0.5rem' }}>
+                            {leaderboardData.length === 0 ? (
+                                <p style={{ color: '#aaa', textAlign: 'center' }}>No heroes yet.</p>
+                            ) : (
+                                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                    <thead>
+                                        <tr style={{ borderBottom: '2px solid #555' }}>
+                                            <th style={{ padding: '0.5rem', textAlign: 'left', color: '#F7D51D' }}>#</th>
+                                            <th style={{ padding: '0.5rem', textAlign: 'left', color: '#F7D51D' }}>Hero</th>
+                                            <th style={{ padding: '0.5rem', textAlign: 'left', color: '#F7D51D' }}>Class</th>
+                                            <th style={{ padding: '0.5rem', textAlign: 'center', color: '#F7D51D' }}>Lvl</th>
+                                            <th style={{ padding: '0.5rem', textAlign: 'center', color: '#F7D51D' }}>XP</th>
+                                            <th style={{ padding: '0.5rem', textAlign: 'center', color: '#F7D51D' }}>Quests</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {leaderboardData.map((entry, idx) => (
+                                            <tr key={entry.id} style={{ borderBottom: '1px solid #333', backgroundColor: idx < 3 ? 'rgba(247,213,29,0.1)' : 'transparent' }}>
+                                                <td style={{ padding: '0.5rem', fontWeight: 'bold', color: idx === 0 ? '#F7D51D' : idx === 1 ? '#C0C0C0' : idx === 2 ? '#CD7F32' : '#fff' }}>
+                                                    {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : idx + 1}
+                                                </td>
+                                                <td style={{ padding: '0.5rem', color: '#fff' }}>{entry.username}</td>
+                                                <td style={{ padding: '0.5rem', color: '#92cc41' }}>{entry.class}</td>
+                                                <td style={{ padding: '0.5rem', textAlign: 'center', color: '#fa4' }}>{entry.level}</td>
+                                                <td style={{ padding: '0.5rem', textAlign: 'center', color: '#6af' }}>{entry.xp}</td>
+                                                <td style={{ padding: '0.5rem', textAlign: 'center', color: '#fff' }}>{entry.questCount || 0}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            )}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Profile Modal */}
+                {showProfile && (
+                    <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 200 }}>
+                        <div className="nes-container is-rounded is-dark" style={{ backgroundColor: '#212529', maxWidth: '500px', width: '90%', border: '4px solid #209cee' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                                <h2 style={{ color: '#209cee', margin: 0 }}>⚔️ Hero Profile</h2>
+                                <button className="nes-btn is-error" onClick={() => setShowProfile(false)}>X</button>
+                            </div>
+                            <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+                                <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>
+                                    {user.class === 'Warrior' ? '⚔️' : user.class === 'Mage' ? '🧙' : user.class === 'Rogue' ? '🗡️' : user.class === 'Cleric' ? '🛡️' : '👑'}
+                                </div>
+                                <h3 style={{ color: '#fff', margin: 0 }}>{user.username}</h3>
+                                <span className="nes-text is-success">{user.class}</span>
+                                <span style={{ marginLeft: '1rem', color: '#fa4' }}>Level {user.level}</span>
+                            </div>
+                            {/* XP Bar */}
+                            <div style={{ marginBottom: '1.5rem' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+                                    <span style={{ color: '#aaa', fontSize: '0.8rem' }}>Experience</span>
+                                    <span style={{ color: '#aaa', fontSize: '0.8rem' }}>{user.xp} / {xpForNextLevel} XP</span>
+                                </div>
+                                <div style={{ height: '18px', backgroundColor: '#333', border: '2px solid #555', borderRadius: '2px', overflow: 'hidden' }}>
+                                    <div style={{ width: `${xpProgress}%`, height: '100%', backgroundColor: '#92cc41', transition: 'width 0.5s ease' }} />
+                                </div>
+                            </div>
+                            {/* Stats */}
+                            {profileStats && (
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                                    <div className="nes-container is-rounded" style={{ padding: '0.5rem', textAlign: 'center', backgroundColor: '#2a2f35', borderColor: '#4a4a8a' }}>
+                                        <div style={{ fontSize: '1.5rem', color: '#4f4' }}>{profileStats.questsDone}</div>
+                                        <div style={{ fontSize: '0.7rem', color: '#aaa' }}>Quests Done</div>
+                                    </div>
+                                    <div className="nes-container is-rounded" style={{ padding: '0.5rem', textAlign: 'center', backgroundColor: '#2a2f35', borderColor: '#4a4a8a' }}>
+                                        <div style={{ fontSize: '1.5rem', color: '#fa4' }}>{profileStats.questsInProgress}</div>
+                                        <div style={{ fontSize: '0.7rem', color: '#aaa' }}>In Progress</div>
+                                    </div>
+                                    <div className="nes-container is-rounded" style={{ padding: '0.5rem', textAlign: 'center', backgroundColor: '#2a2f35', borderColor: '#4a4a8a' }}>
+                                        <div style={{ fontSize: '1.5rem', color: '#e76e55' }}>{profileStats.totalDamage}</div>
+                                        <div style={{ fontSize: '0.7rem', color: '#aaa' }}>Total Damage</div>
+                                    </div>
+                                    <div className="nes-container is-rounded" style={{ padding: '0.5rem', textAlign: 'center', backgroundColor: '#2a2f35', borderColor: '#4a4a8a' }}>
+                                        <div style={{ fontSize: '1.5rem', color: '#6af' }}>{profileStats.totalXpEarned}</div>
+                                        <div style={{ fontSize: '0.7rem', color: '#aaa' }}>Total XP Earned</div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* Level-Up Celebration */}
+                {showLevelUp && levelUpInfo && (
+                    <div style={{
+                        position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
+                        display: 'flex', justifyContent: 'center', alignItems: 'center',
+                        zIndex: 300, pointerEvents: 'none',
+                        background: 'radial-gradient(circle, rgba(247,213,29,0.2) 0%, transparent 70%)'
+                    }}>
+                        <div style={{
+                            textAlign: 'center',
+                            animation: 'fadeInUp 0.5s ease',
+                            pointerEvents: 'auto'
+                        }}>
+                            <div style={{ fontSize: '4rem' }}>⭐</div>
+                            <h1 style={{ color: '#F7D51D', textShadow: '0 0 20px rgba(247,213,29,0.8)', fontSize: '2.5rem', margin: '0.5rem 0' }}>LEVEL UP!</h1>
+                            <p style={{ color: '#fff', fontSize: '1.5rem' }}>Level {levelUpInfo.newLevel}</p>
                         </div>
                     </div>
                 )}

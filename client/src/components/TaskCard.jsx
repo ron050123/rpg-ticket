@@ -44,6 +44,20 @@ const TaskCard = ({ task, onMove, users, onNotify }) => {
     if (task.priority === 'HIGH') badgeClass = 'is-error';
     if (task.priority === 'LOW') badgeClass = 'is-success';
 
+    // Deadline warning logic
+    let deadlineStatus = null; // 'overdue' | 'due-soon' | null
+    let daysUntilDeadline = null;
+    if (task.deadline && task.deadline !== '' && !isNaN(new Date(task.deadline).getTime()) && task.status !== 'DONE') {
+        const now = new Date();
+        now.setHours(0, 0, 0, 0);
+        const dl = new Date(task.deadline);
+        dl.setHours(0, 0, 0, 0);
+        daysUntilDeadline = Math.ceil((dl - now) / (1000 * 60 * 60 * 24));
+        if (daysUntilDeadline < 0) deadlineStatus = 'overdue';
+        else if (daysUntilDeadline <= 2) deadlineStatus = 'due-soon';
+    }
+    const deadlineBorderColor = deadlineStatus === 'overdue' ? '#e76e55' : deadlineStatus === 'due-soon' ? '#f7d51d' : undefined;
+
     const handleAddSubTask = async (e) => {
         e.preventDefault();
         try {
@@ -361,7 +375,7 @@ const TaskCard = ({ task, onMove, users, onNotify }) => {
 
 
     return (
-        <div className="nes-container is-rounded" style={{ marginBottom: '0.75rem', padding: '0.75rem', position: 'relative', backgroundColor: 'rgba(15, 15, 50, 0.9)', borderColor: '#5a5a9a', color: '#e0e0ff', fontSize: '0.75rem' }}>
+        <div className="nes-container is-rounded" style={{ marginBottom: '0.75rem', padding: '0.75rem', position: 'relative', backgroundColor: 'rgba(15, 15, 50, 0.9)', borderColor: deadlineBorderColor || '#5a5a9a', color: '#e0e0ff', fontSize: '0.75rem', borderLeftWidth: deadlineBorderColor ? '6px' : undefined }}>
             {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
@@ -424,8 +438,20 @@ const TaskCard = ({ task, onMove, users, onNotify }) => {
 
             {/* Deadline */}
             {task.deadline && task.deadline !== '' && !isNaN(new Date(task.deadline).getTime()) && (
-                <div style={{ fontSize: '0.75rem', fontStyle: 'italic', marginBottom: '0.5rem' }}>
-                    ⏰ Deadline: {new Date(task.deadline).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                <div style={{ fontSize: '0.75rem', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ fontStyle: 'italic' }}>
+                        ⏰ Deadline: {new Date(task.deadline).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                    </span>
+                    {deadlineStatus === 'overdue' && (
+                        <span style={{ backgroundColor: '#e76e55', color: '#fff', padding: '1px 6px', borderRadius: '4px', fontSize: '0.65rem', fontWeight: 'bold', animation: 'blink 1s infinite' }}>
+                            ⚠️ OVERDUE ({Math.abs(daysUntilDeadline)}d)
+                        </span>
+                    )}
+                    {deadlineStatus === 'due-soon' && (
+                        <span style={{ backgroundColor: '#f7d51d', color: '#000', padding: '1px 6px', borderRadius: '4px', fontSize: '0.65rem', fontWeight: 'bold' }}>
+                            ⏰ DUE {daysUntilDeadline === 0 ? 'TODAY' : `IN ${daysUntilDeadline}d`}
+                        </span>
+                    )}
                 </div>
             )}
 

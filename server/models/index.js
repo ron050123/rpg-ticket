@@ -7,6 +7,8 @@ const Reward = require('./Reward');
 const Notification = require('./Notification');
 
 const Comment = require('./Comment');
+const Achievement = require('./Achievement');
+const UserAchievement = require('./UserAchievement');
 
 // Associations
 Boss.hasMany(Task, { foreignKey: 'boss_id', onDelete: 'SET NULL' });
@@ -34,6 +36,10 @@ Task.hasMany(Comment, { foreignKey: 'taskId', onDelete: 'CASCADE' });
 Notification.belongsTo(User, { foreignKey: 'userId' });
 User.hasMany(Notification, { foreignKey: 'userId' });
 
+// Achievement Associations
+User.belongsToMany(Achievement, { through: UserAchievement, foreignKey: 'userId' });
+Achievement.belongsToMany(User, { through: UserAchievement, foreignKey: 'achievementId' });
+
 module.exports = {
     User,
     Boss,
@@ -41,5 +47,7 @@ module.exports = {
     Comment,
     Reward,
     Notification,
+    Achievement,
+    UserAchievement,
     sequelize
 };
