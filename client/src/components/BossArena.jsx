@@ -1,6 +1,7 @@
-import React, { useMemo, useState, useEffect, useRef } from 'react';
+import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import SpriteHero from './SpriteHero';
 import SpriteBoss from './SpriteBoss';
+import bossProjectile from '../assets/boss_projectile.png';
 import './BossArena.css';
 
 const BossArena = ({ boss, userClass, tasks = [] }) => {
@@ -16,6 +17,18 @@ const BossArena = ({ boss, userClass, tasks = [] }) => {
     const prevHpRef = useRef(null);
     const [isHurt, setIsHurt] = useState(false);
 
+    // Projectile state
+    const [projectileFiring, setProjectileFiring] = useState(false);
+    const projectileTimerRef = useRef(null);
+
+    const handleBossAttack = useCallback(() => {
+        // Fire a projectile from boss toward hero
+        setProjectileFiring(true);
+        if (projectileTimerRef.current) clearTimeout(projectileTimerRef.current);
+        // Projectile flies for ~800ms then disappears
+        projectileTimerRef.current = setTimeout(() => setProjectileFiring(false), 800);
+    }, []);
+
     // Detect HP drops to trigger hurt animation
     useEffect(() => {
         if (!boss) return;
@@ -27,6 +40,11 @@ const BossArena = ({ boss, userClass, tasks = [] }) => {
         }
         prevHpRef.current = boss.current_hp;
     }, [boss?.current_hp]);
+
+    // Cleanup projectile timer on unmount
+    useEffect(() => {
+        return () => { if (projectileTimerRef.current) clearTimeout(projectileTimerRef.current); };
+    }, []);
 
     if (!boss) {
         return (
@@ -114,7 +132,16 @@ const BossArena = ({ boss, userClass, tasks = [] }) => {
                                 className="boss-sprite boss-sprite--custom"
                             />
                         ) : (
-                            <SpriteBoss state={bossState} size={380} />
+                            <SpriteBoss state={bossState} size={380} onAttack={handleBossAttack} />
+                        )}
+
+                        {/* Projectile */}
+                        {projectileFiring && (
+                            <img
+                                src={bossProjectile}
+                                alt="fireball"
+                                className="boss-projectile"
+                            />
                         )}
                     </div>
 

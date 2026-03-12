@@ -35,7 +35,7 @@ function loadImage(src) {
     });
 }
 
-const SpriteBoss = ({ state = 'idle', size = 160 }) => {
+const SpriteBoss = ({ state = 'idle', size = 160, onAttack }) => {
     const canvasRef = useRef(null);
     const frameIdxRef = useRef(0);
     const timerRef = useRef(null);
@@ -92,13 +92,15 @@ const SpriteBoss = ({ state = 'idle', size = 160 }) => {
             if (cycleRef.current === 'flying') {
                 cycleRef.current = 'attack';
                 setAnimKey('attack');
+                // Notify parent that an attack is starting
+                if (onAttack) onAttack();
             } else {
                 cycleRef.current = 'flying';
                 setAnimKey('flying');
             }
         }
         // idle and defeated don't cycle
-    }, [state]);
+    }, [state, onAttack]);
 
     // Animate the current sheet
     useEffect(() => {

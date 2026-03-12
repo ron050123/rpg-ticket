@@ -4,12 +4,16 @@ import warriorSprite from '../assets/warrior_sprite.png';
 import mageSprite from '../assets/mage_sprite.png';
 import rogueSprite from '../assets/rogue_sprite.png';
 import clericSprite from '../assets/cleric_sprite.png';
-import grandmasterSprite from '../assets/grandmaster_sprite.png';
+import grandmasterIdle from '../assets/grandmaster_idle.png';
+import grandmasterAttack from '../assets/grandmaster_attack.png';
 
 /*
   Auto-detect frames from AI-generated sprite sheets.
   After removing the background, we scan columns for gaps of
   transparent pixels to find the bounding box of each character frame.
+
+  Grandmaster uses separate sprite sheets for idle / attack
+  (Medieval King Pack) which already have transparent backgrounds.
 */
 
 const SPRITE_IMGS = {
@@ -17,7 +21,7 @@ const SPRITE_IMGS = {
     Mage: mageSprite,
     Rogue: rogueSprite,
     Cleric: clericSprite,
-    Grandmaster: grandmasterSprite,
+    Grandmaster: { idle: grandmasterIdle, attack: grandmasterAttack },
 };
 
 /* ---------- background removal ---------- */
@@ -61,6 +65,20 @@ function removeBackground(img, tolerance = 40) {
     }
 
     ctx.putImageData(imageData, 0, 0);
+    processedCache[cacheKey] = canvas;
+    return canvas;
+}
+
+/* ---------- convert an Image to a canvas without modifying it ---------- */
+function imgToCanvas(img) {
+    const cacheKey = img.src + '_raw';
+    if (processedCache[cacheKey]) return processedCache[cacheKey];
+
+    const canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0);
     processedCache[cacheKey] = canvas;
     return canvas;
 }
@@ -226,46 +244,81 @@ function detectFrames(canvas) {
     return frames;
 }
 
+
+
 const SpriteHero = ({ heroClass = 'Warrior', active = false, size = 64 }) => {
     const canvasRef = useRef(null);
-    const [processedSheet, setProcessedSheet] = useState(null);
-    const [frames, setFrames] = useState(null);
+    const [idleFrames, setIdleFrames] = useState(null);
+    const [attackFrames, setAttackFrames] = useState(null);
     const frameIdxRef = useRef(0);
     const timerRef = useRef(null);
 
-    const imgSrc = SPRITE_IMGS[heroClass] || SPRITE_IMGS.Warrior;
+    const spriteEntry = SPRITE_IMGS[heroClass] || SPRITE_IMGS.Warrior;
+    const isMultiSheet = typeof spriteEntry === 'object' && spriteEntry.idle;
 
-    // Load and process sprite sheet
+    // Load and process sprite sheet(s)
     useEffect(() => {
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = () => {
-            const processed = removeBackground(img);
-            const detected = detectFrames(processed);
-            setProcessedSheet(processed);
-            setFrames(detected);
-        };
-        img.src = imgSrc;
-    }, [imgSrc]);
+        if (isMultiSheet) {
+            // Grandmaster: load two separate sheets
+            let loaded = 0;
+            let idleCanvas = null;
+            let attackCanvas = null;
+
+            const tryFinish = () => {
+                loaded++;
+                if (loaded === 2 && idleCanvas && attackCanvas) {
+                    // Use detectFrames to tightly crop around each character frame
+                    // so the grandmaster appears the same size as other classes
+                    const idleF = detectFrames(idleCanvas);
+                    const attackF = detectFrames(attackCanvas);
+
+                    setIdleFrames(idleF.map(f => ({ ...f, _canvas: idleCanvas })));
+                    setAttackFrames(attackF.map(f => ({ ...f, _canvas: attackCanvas })));
+                }
+            };
+
+            const idleImg = new Image();
+            idleImg.crossOrigin = 'anonymous';
+            idleImg.onload = () => { idleCanvas = imgToCanvas(idleImg); tryFinish(); };
+            idleImg.src = spriteEntry.idle;
+
+            const attackImg = new Image();
+            attackImg.crossOrigin = 'anonymous';
+            attackImg.onload = () => { attackCanvas = imgToCanvas(attackImg); tryFinish(); };
+            attackImg.src = spriteEntry.attack;
+        } else {
+            // Single sheet: existing flow
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => {
+                const processed = removeBackground(img);
+                const detected = detectFrames(processed);
+
+                const half = Math.floor(detected.length / 2);
+                setIdleFrames(detected.slice(0, half).map(f => ({ ...f, _canvas: processed })));
+                setAttackFrames(detected.slice(half).map(f => ({ ...f, _canvas: processed })));
+            };
+            img.src = spriteEntry;
+        }
+    }, [heroClass, isMultiSheet, spriteEntry]);
+
+    // Combine all frames for sizing
+    const allFrames = (idleFrames && attackFrames) ? [...idleFrames, ...attackFrames] : null;
 
     // Animate frames
     useEffect(() => {
-        if (!processedSheet || !frames || !canvasRef.current) return;
+        if (!idleFrames || !attackFrames || !canvasRef.current) return;
 
-        // Split detected frames: first half idle, second half attack
-        const half = Math.floor(frames.length / 2);
-        const idleFrames = frames.slice(0, half);
-        const attackFrames = frames.slice(half);
         const currentFrames = active ? attackFrames : idleFrames;
-
         if (currentFrames.length === 0) return;
 
         const canvas = canvasRef.current;
         const ctx = canvas.getContext('2d');
 
         // Use GLOBAL max across ALL frames so idle and attack are the same size
-        const globalMaxW = Math.max(...frames.map(f => f.w));
-        const globalMaxH = Math.max(...frames.map(f => f.h));
+        const all = [...idleFrames, ...attackFrames];
+        const globalMaxW = Math.max(...all.map(f => f.w));
+        const globalMaxH = Math.max(...all.map(f => f.h));
         canvas.width = globalMaxW;
         canvas.height = globalMaxH;
 
@@ -275,7 +328,9 @@ const SpriteHero = ({ heroClass = 'Warrior', active = false, size = 64 }) => {
             // Center each frame within the uniform canvas
             const dx = Math.floor((globalMaxW - frame.w) / 2);
             const dy = Math.floor((globalMaxH - frame.h) / 2);
-            ctx.drawImage(processedSheet, frame.x, frame.y, frame.w, frame.h, dx, dy, frame.w, frame.h);
+            // Draw from the frame's own canvas
+            const srcCanvas = frame._canvas;
+            ctx.drawImage(srcCanvas, frame.x, frame.y, frame.w, frame.h, dx, dy, frame.w, frame.h);
         };
 
         frameIdxRef.current = 0;
@@ -288,14 +343,14 @@ const SpriteHero = ({ heroClass = 'Warrior', active = false, size = 64 }) => {
         }, active ? 200 : 400);
 
         return () => clearInterval(timerRef.current);
-    }, [processedSheet, frames, heroClass, active]);
+    }, [idleFrames, attackFrames, heroClass, active]);
 
     // Calculate display size using GLOBAL max so idle and attack are the same visual size
     let displayW = size;
     let displayH = size;
-    if (frames && frames.length > 0) {
-        const globalMaxW = Math.max(...frames.map(f => f.w));
-        const globalMaxH = Math.max(...frames.map(f => f.h));
+    if (allFrames && allFrames.length > 0) {
+        const globalMaxW = Math.max(...allFrames.map(f => f.w));
+        const globalMaxH = Math.max(...allFrames.map(f => f.h));
         // Scale to fit within size x size box (use the tighter constraint)
         const scale = Math.min(size / globalMaxW, size / globalMaxH);
         displayW = Math.round(globalMaxW * scale);
