@@ -12,8 +12,13 @@ const User = sequelize.define('User', {
         allowNull: false
     },
     class: {
-        type: DataTypes.ENUM('Warrior', 'Mage', 'Rogue', 'Cleric', 'Grandmaster'),
-        allowNull: false
+        type: DataTypes.STRING,
+        allowNull: true,
+        defaultValue: 'Warrior'
+    },
+    appearance: {
+        type: DataTypes.JSON,
+        allowNull: true
     },
     role: {
         type: DataTypes.ENUM('USER', 'ADMIN'),
@@ -26,6 +31,10 @@ const User = sequelize.define('User', {
     level: {
         type: DataTypes.INTEGER,
         defaultValue: 1
+    },
+    inventory: {
+        type: DataTypes.JSON,
+        defaultValue: []
     }
 });
 

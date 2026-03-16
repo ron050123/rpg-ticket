@@ -32,12 +32,52 @@ app.use('/api/rewards', require('./routes/rewards'));
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/leaderboard', require('./routes/leaderboard'));
 app.use('/api/achievements', require('./routes/achievements'));
+app.use('/api/dungeons', require('./routes/dungeons'));
+
+// Lobby state
+const lobbyPlayers = {}; // { socketId: { id, username, x, y, appearance } }
 
 // Socket.io connection
 io.on('connection', (socket) => {
     console.log('A user connected:', socket.id);
+
+    // --- LOBBY EVENTS ---
+    socket.on('join_lobby', (userData) => {
+        // Assign random initial position or fixed spawn point
+        const startX = 400 + Math.random() * 100 - 50;
+        const startY = 300 + Math.random() * 100 - 50;
+
+        lobbyPlayers[socket.id] = {
+            id: userData.id,
+            username: userData.username,
+            appearance: userData.appearance,
+            x: startX,
+            y: startY
+        };
+
+        // Tell the user who is currently here
+        socket.emit('current_players', lobbyPlayers);
+
+        // Tell others a new player joined
+        socket.broadcast.emit('player_joined', { socketId: socket.id, player: lobbyPlayers[socket.id] });
+        console.log(`${userData.username} joined the lobby at ${startX}, ${startY}`);
+    });
+
+    socket.on('player_move', (positionData) => {
+        if (lobbyPlayers[socket.id]) {
+            lobbyPlayers[socket.id].x = positionData.x;
+            lobbyPlayers[socket.id].y = positionData.y;
+            // Broadcast to everyone else
+            socket.broadcast.emit('player_moved', { socketId: socket.id, x: positionData.x, y: positionData.y });
+        }
+    });
+
     socket.on('disconnect', () => {
         console.log('User disconnected:', socket.id);
+        if (lobbyPlayers[socket.id]) {
+            socket.broadcast.emit('player_left', socket.id);
+            delete lobbyPlayers[socket.id];
+        }
     });
 });
 

@@ -1,10 +1,11 @@
 import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
-import SpriteHero from './SpriteHero';
+import CustomHero from './CustomHero';
 import SpriteBoss from './SpriteBoss';
+import SpriteCreep from './SpriteCreep';
 import bossProjectile from '../assets/boss_projectile.png';
 import './BossArena.css';
 
-const BossArena = ({ boss, userClass, tasks = [] }) => {
+const BossArena = ({ boss, appearance, tasks = [] }) => {
     // Memoize stars so they don't re-randomize on each render
     const stars = useMemo(() => Array.from({ length: 25 }).map((_, i) => ({
         key: i,
@@ -12,6 +13,9 @@ const BossArena = ({ boss, userClass, tasks = [] }) => {
         top: `${Math.random() * 100}%`,
         delay: `${Math.random() * 3}s`,
     })), []);
+
+    // Filter tasks for this boss to render as creeps
+    const creepTasks = useMemo(() => tasks.filter(t => t.boss_id === (boss ? boss.id : null)), [tasks, boss]);
 
     // Track previous HP to detect hits
     const prevHpRef = useRef(null);
@@ -103,12 +107,46 @@ const BossArena = ({ boss, userClass, tasks = [] }) => {
 
 
                 {/* ===== BATTLE SCENE ===== */}
-                <div className="battle-scene">
+                <div className="battle-scene" style={{ position: 'relative' }}>
+                    
+                    {/* Render Creeps around the Boss */}
+                    {!isDefeated && creepTasks.map((t, idx) => {
+                        const count = creepTasks.length;
+                        const angle = (idx / count) * 2 * Math.PI;
+                        const radiusX = 220;
+                        const radiusY = 100;
+                        const centerX = 200; // Center relative to battle-boss container
+                        const centerY = 0;
+                        const x = centerX + Math.cos(angle) * radiusX;
+                        const y = centerY + Math.sin(angle) * radiusY;
+
+                        return (
+                            <div key={t.id} style={{
+                                position: 'absolute',
+                                right: `${15 + (x/5)}%`,
+                                bottom: `${25 + (y/5)}%`,
+                                zIndex: Math.floor(y) + 50,
+                                transform: 'translate(50%, 50%)'
+                            }}>
+                                <SpriteCreep type={t.creep_visual} status={t.status} size={80} />
+                                {t.status !== 'DONE' && (
+                                    <div style={{
+                                        position: 'absolute', top: '-25px', left: '50%', transform: 'translateX(-50%)',
+                                        backgroundColor: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: '0.6rem',
+                                        padding: '1px 4px', borderRadius: '3px', whiteSpace: 'nowrap', border: '1px solid #555'
+                                    }}>
+                                        {t.title.length > 15 ? t.title.substring(0, 15) + '...' : t.title}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+
                     {/* Hero on the left */}
-                    {userClass && (
+                    {appearance && (
                         <div className={`battle-hero ${isDefeated ? 'hero-victory' : 'hero-fighting'}`}>
-                            <SpriteHero
-                                heroClass={userClass}
+                            <CustomHero
+                                appearance={appearance}
                                 active={!isDefeated}
                                 size={220}
                             />
@@ -124,7 +162,7 @@ const BossArena = ({ boss, userClass, tasks = [] }) => {
                     )}
 
                     {/* Boss on the right */}
-                    <div className={`battle-boss ${isDefeated ? 'boss-fallen' : ''}`}>
+                    <div className={`battle-boss ${isDefeated ? 'boss-fallen' : ''}`} style={{ zIndex: 10 }}>
                         {boss.image_url && boss.image_url.startsWith('http') ? (
                             <img
                                 src={boss.image_url}

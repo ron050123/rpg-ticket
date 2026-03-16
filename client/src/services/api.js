@@ -190,6 +190,12 @@ export const api = {
         if (!res.ok) throw await res.json();
         return res.json();
     },
+    // User Inventory
+    getInventory: async () => {
+        const res = await fetch(`${API_URL}/users/inventory`, { headers: getHeaders() });
+        if (!res.ok) throw await res.json();
+        return res.json();
+    },
     // Achievements
     getAchievements: async () => {
         const res = await fetch(`${API_URL}/achievements`, { headers: getHeaders() });

@@ -10,7 +10,7 @@ const SECRET_KEY = process.env.JWT_SECRET || 'secret_quest_key';
 // Register
 router.post('/register', async (req, res) => {
     try {
-        const { username, password, class: userClass } = req.body;
+        const { username, password, appearance, role: reqRole, class: reqClass } = req.body;
 
         // Check if user exists
         const existingUser = await User.findOne({ where: { username } });
@@ -18,20 +18,21 @@ router.post('/register', async (req, res) => {
             return res.status(400).json({ message: 'Hero already exists' });
         }
 
-        // Derive role from class server-side (never trust the frontend)
-        const role = userClass === 'Grandmaster' ? 'ADMIN' : 'USER';
+        const role = reqRole === 'ADMIN' ? 'ADMIN' : 'USER';
+        const userClass = reqClass || 'Warrior';
 
         const hashedPassword = await bcrypt.hash(password, 10);
         const user = await User.create({
             username,
             password: hashedPassword,
-            class: userClass,
-            role
+            appearance,
+            role,
+            class: userClass
         });
 
         const token = jwt.sign({ id: user.id, username: user.username }, SECRET_KEY);
 
-        res.status(201).json({ token, user: { id: user.id, username: user.username, class: user.class, role: user.role, xp: user.xp, level: user.level } });
+        res.status(201).json({ token, user: { id: user.id, username: user.username, appearance: user.appearance, role: user.role, xp: user.xp, level: user.level } });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -48,7 +49,7 @@ router.post('/login', async (req, res) => {
         }
 
         const token = jwt.sign({ id: user.id, username: user.username }, SECRET_KEY);
-        res.json({ token, user: { id: user.id, username: user.username, class: user.class, role: user.role, xp: user.xp, level: user.level } });
+        res.json({ token, user: { id: user.id, username: user.username, appearance: user.appearance, role: user.role, xp: user.xp, level: user.level } });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -57,7 +58,7 @@ router.post('/login', async (req, res) => {
 // Get all users (requires auth)
 router.get('/users', verifyToken, async (req, res) => {
     try {
-        const users = await User.findAll({ attributes: ['id', 'username', 'class'] });
+        const users = await User.findAll({ attributes: ['id', 'username', 'appearance'] });
         res.json(users);
     } catch (e) {
         res.status(500).json({ error: e.message });
@@ -68,7 +69,7 @@ router.get('/users', verifyToken, async (req, res) => {
 router.get('/me', verifyToken, async (req, res) => {
     try {
         const user = req.user;
-        res.json({ id: user.id, username: user.username, class: user.class, role: user.role, xp: user.xp, level: user.level });
+        res.json({ id: user.id, username: user.username, appearance: user.appearance, role: user.role, xp: user.xp, level: user.level });
     } catch (e) {
         res.status(500).json({ error: e.message });
     }

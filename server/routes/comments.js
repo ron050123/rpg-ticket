@@ -9,7 +9,7 @@ router.get('/:taskId', verifyToken, async (req, res) => {
     try {
         const comments = await Comment.findAll({
             where: { taskId: req.params.taskId },
-            include: [{ model: User, attributes: ['id', 'username', 'class'] }],
+            include: [{ model: User, attributes: ['id', 'username', 'appearance'] }],
             order: [['createdAt', 'ASC']]
         });
         res.json(comments);
@@ -34,7 +34,7 @@ router.post('/:taskId', verifyToken, async (req, res) => {
         });
 
         const commentWithUser = await Comment.findByPk(comment.id, {
-            include: [{ model: User, attributes: ['id', 'username', 'class'] }]
+            include: [{ model: User, attributes: ['id', 'username', 'appearance'] }]
         });
 
         res.status(201).json(commentWithUser);

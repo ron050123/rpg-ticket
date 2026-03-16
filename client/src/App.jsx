@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import LoginView from './views/LoginView'
 import BattleView from './views/BattleView'
+import LobbyView from './views/LobbyView'
 import { AuthProvider, useAuth } from './context/AuthContext'
 
 const PrivateRoute = ({ children }) => {
@@ -17,6 +18,11 @@ function App() {
           <Route path="/dashboard" element={
             <PrivateRoute>
               <BattleView />
+            </PrivateRoute>
+          } />
+          <Route path="/lobby" element={
+            <PrivateRoute>
+              <LobbyView />
             </PrivateRoute>
           } />
           <Route path="*" element={<Navigate to="/dashboard" />} />

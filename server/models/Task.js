@@ -46,21 +46,25 @@ const Task = sequelize.define('Task', {
         type: DataTypes.INTEGER,
         defaultValue: 10
     },
+    creep_visual: {
+        type: DataTypes.STRING,
+        allowNull: true
+    },
     assigned_to: {
         type: DataTypes.INTEGER,
-        allowNull: true // Keeping for backward compatibility or primary assignee if needed, but we will use association
+        allowNull: true
     },
     is_public: {
         type: DataTypes.BOOLEAN,
-        defaultValue: false // By default, tasks are private (only visible to assignees)
+        defaultValue: false 
     },
     description: {
         type: DataTypes.TEXT,
-        allowNull: true // Optional description for quests and side quests
+        allowNull: true
     },
     deadline: {
         type: DataTypes.DATEONLY,
-        allowNull: true // Optional deadline for quests
+        allowNull: true
     },
     parent_task_id: {
         type: DataTypes.INTEGER,

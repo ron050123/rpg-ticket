@@ -1,21 +1,25 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import { api } from '../services/api';
 import HPBar from '../components/HPBar';
 import TaskCard from '../components/TaskCard';
 import BossArena from '../components/BossArena';
 import SpriteReward from '../components/SpriteReward';
+import DungeonForge from '../components/DungeonForge';
 import { useAuth } from '../context/AuthContext';
 
 const socket = io(import.meta.env.VITE_SOCKET_URL || 'http://localhost:5322');
 
 const BattleView = () => {
     const { user, updateUser } = useAuth();
+    const navigate = useNavigate();
     const [showRewards, setShowRewards] = useState(false);
     const [boss, setBoss] = useState(null);
     const [tasks, setTasks] = useState([]);
     const [showTaskForm, setShowTaskForm] = useState(false);
     const [showBossForm, setShowBossForm] = useState(false);
+    const [showForge, setShowForge] = useState(false);
     const [users, setUsers] = useState([]);
     const [notification, setNotification] = useState(null);
     const [rewards, setRewards] = useState([]);
@@ -555,7 +559,7 @@ const BattleView = () => {
         <div style={{ position: 'relative', minHeight: '100vh' }}>
             {/* FULL-SCREEN BOSS ARENA BACKGROUND */}
             <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 0 }}>
-                <BossArena boss={boss} userClass={user?.class} tasks={tasks} />
+                <BossArena boss={boss} appearance={user?.appearance} tasks={tasks} />
             </div>
 
             {notification && (
@@ -577,7 +581,7 @@ const BattleView = () => {
                         <span className="nes-text is-primary" style={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={() => { loadProfile(); setShowProfile(true); }}>Player: {user.username}</span>
                         {isAdmin && <span className="nes-text is-error">(GM)</span>}
                         <span className="nes-text is-warning">Lvl {user.level}</span>
-                        <span className="nes-text is-success">{user.class}</span>
+                        <span className="nes-text is-success">{user.appearance?.head || 'Hero'}</span>
                     </div>
                     {/* XP Progress Bar */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', maxWidth: '400px' }}>
@@ -590,10 +594,11 @@ const BattleView = () => {
                 </div>
 
                 {/* Tabs & Actions */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
                     <div>
-                        <button className={`nes-btn ${activeTab === 'battle' ? 'is-primary' : ''}`} onClick={() => setActiveTab('battle')} style={{ marginRight: '1rem' }}>Battle View</button>
-                        <button className={`nes-btn ${activeTab === 'timeline' ? 'is-primary' : ''}`} onClick={() => setActiveTab('timeline')}>Timeline View</button>
+                        <button className={`nes-btn ${activeTab === 'battle' ? 'is-primary' : ''}`} onClick={() => setActiveTab('battle')} style={{ marginRight: '0.5rem' }}>Battle View</button>
+                        <button className={`nes-btn ${activeTab === 'timeline' ? 'is-primary' : ''}`} onClick={() => setActiveTab('timeline')} style={{ marginRight: '0.5rem' }}>Timeline</button>
+                        <button className="nes-btn is-success" onClick={() => navigate('/lobby')}>🌍 Go to Lobby</button>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                         <button className="nes-btn is-warning" onClick={() => setShowRewards(true)}>Rewards</button>
@@ -710,6 +715,7 @@ const BattleView = () => {
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', marginTop: '0.75rem' }}>
                                         <div style={{ display: 'flex', gap: '0.5rem' }}>
                                             {boss && <button className="nes-btn is-success" onClick={() => setShowTaskForm(true)} style={{ fontSize: '0.75rem' }}>+ New Quest</button>}
+                                            {boss && <button className="nes-btn is-primary" onClick={() => setShowForge(!showForge)} style={{ fontSize: '0.75rem' }}>⚒️ AI Forge</button>}
                                             <button className="nes-btn is-primary" onClick={() => setShowBossForm(true)} style={{ fontSize: '0.75rem' }}>Summon Boss</button>
                                         </div>
                                         {boss && (
@@ -719,6 +725,13 @@ const BattleView = () => {
                                             </div>
                                         )}
                                     </div>
+                                )}
+
+                                {isAdmin && boss && showForge && (
+                                    <DungeonForge bossId={boss.id} onForgeComplete={() => {
+                                        setShowForge(false);
+                                        loadData();
+                                    }} />
                                 )}
                             </div>
 
@@ -1114,7 +1127,7 @@ const BattleView = () => {
                                             >
                                                 <option value="">Select Lead...</option>
                                                 {users.map(u => (
-                                                    <option key={u.id} value={u.id}>{u.username} ({u.class})</option>
+                                                    <option key={u.id} value={u.id}>{u.username}</option>
                                                 ))}
                                             </select>
                                         </div>
@@ -1133,7 +1146,7 @@ const BattleView = () => {
                                                             checked={newTask.associate_ids.includes(u.id)}
                                                             onChange={() => toggleAssignee(u.id)}
                                                         />
-                                                        <span>{u.username} ({u.class})</span>
+                                                        <span>{u.username}</span>
                                                     </label>
                                                 </div>
                                             ))}
@@ -1275,7 +1288,7 @@ const BattleView = () => {
                                                         }} required>
                                                             <option value="">Select Lead...</option>
                                                             {users.map(u => (
-                                                                <option key={u.id} value={u.id}>{u.username} ({u.class})</option>
+                                                                <option key={u.id} value={u.id}>{u.username}</option>
                                                             ))}
                                                         </select>
                                                     </div>
@@ -1556,10 +1569,10 @@ const BattleView = () => {
                             </div>
                             <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
                                 <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>
-                                    {user.class === 'Warrior' ? '⚔️' : user.class === 'Mage' ? '🧙' : user.class === 'Rogue' ? '🗡️' : user.class === 'Cleric' ? '🛡️' : '👑'}
+                                    {user.appearance?.weapon === 'sword' ? '⚔️' : user.appearance?.weapon === 'staff' ? '🧙' : user.appearance?.weapon === 'dagger' ? '🗡️' : user.appearance?.weapon === 'scepter' ? '🛡️' : '👑'}
                                 </div>
                                 <h3 style={{ color: '#fff', margin: 0 }}>{user.username}</h3>
-                                <span className="nes-text is-success">{user.class}</span>
+                                <span className="nes-text is-success">{user.appearance?.head || 'Hero'}</span>
                                 <span style={{ marginLeft: '1rem', color: '#fa4' }}>Level {user.level}</span>
                             </div>
                             {/* XP Bar */}

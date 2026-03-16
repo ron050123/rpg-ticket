@@ -61,6 +61,11 @@ router.post('/exchange', async (req, res) => {
         }
 
         user.xp -= cost;
+        
+        // Add to inventory
+        const currentInventory = user.inventory || [];
+        user.inventory = [...currentInventory, { item, timestamp: new Date() }];
+        
         await user.save();
 
         // Notify admins via socket
@@ -83,9 +88,20 @@ router.post('/exchange', async (req, res) => {
             });
         }
 
-        res.json({ success: true, newXP: user.xp, message: `Successfully exchanged ${cost} XP for ${item}` });
+        res.json({ success: true, newXP: user.xp, inventory: user.inventory, message: `Successfully exchanged ${cost} XP for ${item}` });
     } catch (error) {
         console.error('Exchange error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// GET /inventory
+router.get('/inventory', verifyToken, async (req, res) => {
+    try {
+        const user = await User.findByPk(req.user.id);
+        res.json(user.inventory || []);
+    } catch (error) {
+        console.error('Inventory error:', error);
         res.status(500).json({ error: error.message });
     }
 });

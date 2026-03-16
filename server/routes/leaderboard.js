@@ -10,7 +10,7 @@ router.get('/', verifyToken, async (req, res) => {
     try {
         const users = await User.findAll({
             attributes: [
-                'id', 'username', 'class', 'level', 'xp',
+                'id', 'username', 'appearance', 'level', 'xp',
                 [literal(`(SELECT COUNT(*) FROM UserTasks AS ut 
                     INNER JOIN Tasks AS t ON ut.TaskId = t.id 
                     WHERE ut.UserId = "User"."id" AND t.status = 'DONE')`), 'questCount']
@@ -22,7 +22,7 @@ router.get('/', verifyToken, async (req, res) => {
         res.json(users.map(u => ({
             id: u.id,
             username: u.username,
-            class: u.class,
+            appearance: u.appearance,
             level: u.level,
             xp: u.xp,
             questCount: u.getDataValue('questCount') || 0
